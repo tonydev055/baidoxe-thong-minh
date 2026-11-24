@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "author": "",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+
+    { "type": "board-mfrc522", "id": "rfidVao", "top": -260, "left": -320, "attrs": {} },
+    { "type": "board-mfrc522", "id": "rfidRa", "top": -260, "left": 180, "attrs": {} },
+
+    { "type": "wokwi-servo", "id": "servoVao", "top": 20, "left": -330, "attrs": { "horn": "single" } },
+    { "type": "wokwi-servo", "id": "servoRa", "top": 20, "left": 220, "attrs": { "horn": "single" } },
+
+    { "type": "wokwi-hc-sr04", "id": "sVao", "top": 260, "left": -330, "attrs": { "distance": "400" } },
+    { "type": "wokwi-hc-sr04", "id": "sRa", "top": 260, "left": 180, "attrs": { "distance": "400" } },
+
+    { "type": "wokwi-buzzer", "id": "bzVao", "top": 200, "left": -120, "attrs": { "volume": "0.3" } },
+    { "type": "wokwi-buzzer", "id": "bzRa", "top": 200, "left": 80, "attrs": { "volume": "0.3" } }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
+    [ "rfidVao:SDA", "esp:D5", "yellow", [] ],
+    [ "rfidVao:SCK", "esp:D18", "orange", [] ],
+    [ "rfidVao:MOSI", "esp:D23", "green", [] ],
+    [ "rfidVao:MISO", "esp:D19", "blue", [] ],
+    [ "rfidVao:RST", "esp:D22", "purple", [] ],
+    [ "rfidVao:3.3V", "esp:3V3", "red", [] ],
+    [ "rfidVao:GND", "esp:GND.1", "black", [] ],
+
+    [ "rfidRa:SDA", "esp:D4", "yellow", [] ],
+    [ "rfidRa:SCK", "esp:D18", "orange", [] ],
+    [ "rfidRa:MOSI", "esp:D23", "green", [] ],
+    [ "rfidRa:MISO", "esp:D19", "blue", [] ],
+    [ "rfidRa:RST", "esp:D22", "purple", [] ],
+    [ "rfidRa:3.3V", "esp:3V3", "red", [] ],
+    [ "rfidRa:GND", "esp:GND.1", "black", [] ],
+
+    [ "servoVao:PWM", "esp:D32", "orange", [] ],
+    [ "servoVao:V+", "esp:VIN", "red", [] ],
+    [ "servoVao:GND", "esp:GND.2", "black", [] ],
+    [ "servoRa:PWM", "esp:D33", "orange", [] ],
+    [ "servoRa:V+", "esp:VIN", "red", [] ],
+    [ "servoRa:GND", "esp:GND.2", "black", [] ],
+
+    [ "sVao:VCC", "esp:VIN", "red", [] ],
+    [ "sVao:GND", "esp:GND.2", "black", [] ],
+    [ "sVao:TRIG", "esp:D25", "orange", [] ],
+    [ "sVao:ECHO", "esp:D34", "blue", [] ],
+    [ "sRa:VCC", "esp:VIN", "red", [] ],
+    [ "sRa:GND", "esp:GND.2", "black", [] ],
+    [ "sRa:TRIG", "esp:D26", "orange", [] ],
+    [ "sRa:ECHO", "esp:D35", "blue", [] ],
+
+    [ "bzVao:2", "esp:D27", "red", [] ],
+    [ "bzVao:1", "esp:GND.1", "black", [] ],
+    [ "bzRa:2", "esp:TX2", "red", [] ],
+    [ "bzRa:1", "esp:GND.1", "black", [] ]
+  ],
+  "dependencies": {}
+}

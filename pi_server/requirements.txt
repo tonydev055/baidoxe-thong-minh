@@ -1,0 +1,6 @@
+flask>=3.0
+paho-mqtt>=2.0
+opencv-python-headless
+numpy
+# Đọc biển số (nặng, cài riêng sau khi các gói trên chạy được):
+# easyocr

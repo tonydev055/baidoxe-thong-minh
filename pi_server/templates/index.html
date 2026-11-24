@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bãi đỗ xe thông minh</title>
+<style>
+  :root {
+    --bg: #f4f6f9; --card: #ffffff; --text: #1d2433; --muted: #6b7489; --line: #e2e6ee;
+    --green: #1f9d55; --green-bg: #e3f6ea; --red: #d64545; --red-bg: #fde8e8;
+    --blue: #2563c9; --amber: #b7791f; --amber-bg: #fff4dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161f; --card: #1b2130; --text: #e6e9f0; --muted: #98a1b5; --line: #2a3245;
+      --green-bg: #173826; --red-bg: #3d1d1f; --amber-bg: #3a2e14;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+           padding: 14px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+  .pill.ok { background: var(--green-bg); color: var(--green); }
+  .pill.bad { background: var(--red-bg); color: var(--red); }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .stat, .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat .label { color: var(--muted); font-size: 13px; }
+  .stat .value { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .card h2 { font-size: 16px; margin: 0 0 12px; font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  .slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  .slot { border-radius: 10px; padding: 18px 10px; text-align: center; font-weight: 600; border: 2px solid; }
+  .slot.free { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+  .slot.busy { background: var(--red-bg); color: var(--red); border-color: var(--red); }
+  .slot small { display: block; font-weight: 400; margin-top: 4px; }
+  .gates { display: grid; gap: 10px; }
+  .gate { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  button:hover { border-color: var(--blue); }
+  button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  button.danger { color: var(--red); border-color: var(--red); }
+  input { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .scroll { overflow-x: auto; }
+  img.thumb { width: 72px; height: 44px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+  .plate { font-family: ui-monospace, Consolas, monospace; font-weight: 600; letter-spacing: 1px; }
+  .muted { color: var(--muted); }
+  .alert { background: var(--amber-bg); border: 1px solid var(--amber); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+  .alert .imgs { display: flex; gap: 10px; flex-wrap: wrap; }
+  .alert img { width: 240px; max-width: 100%; border-radius: 8px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .log { font-size: 13px; max-height: 260px; overflow-y: auto; }
+  .log div { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .log .canh_bao { color: var(--red); }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--green-bg); color: var(--green); }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bãi đỗ xe thông minh</h1>
+  <div class="row">
+    <span id="mqtt" class="pill bad">MQTT: mất kết nối</span>
+    <span id="clock" class="muted"></span>
+  </div>
+</header>
+
+<main>
+  <section class="stats">
+    <div class="stat"><div class="label">Chỗ trống</div><div class="value" id="s-trong">–</div></div>
+    <div class="stat"><div class="label">Xe đang trong bãi</div><div class="value" id="s-xe">–</div></div>
+    <div class="stat"><div class="label">Lượt xe ra hôm nay</div><div class="value" id="s-luot">–</div></div>
+    <div class="stat"><div class="label">Doanh thu hôm nay</div><div class="value" id="s-tien">–</div></div>
+  </section>
+
+  <div id="alerts"></div>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Sơ đồ ô đỗ</h2>
+      <div class="slots" id="slots"></div>
+    </div>
+    <div class="card">
+      <h2>Cổng</h2>
+      <div class="gates">
+        <div class="gate"><div><b>Cổng vào</b><div class="muted" id="g-vao">–</div></div><button onclick="moCong('vao')">Mở cổng</button></div>
+        <div class="gate"><div><b>Cổng ra</b><div class="muted" id="g-ra">–</div></div><button onclick="moCong('ra')">Mở cổng</button></div>
+      </div>
+      <p class="muted" id="gia" style="font-size:13px;margin:12px 0 0"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Xe đang trong bãi</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Ảnh vào</th><th>Thẻ</th><th>Biển số</th><th>Loại</th><th>Giờ vào</th><th>Đã đỗ</th><th>Tạm tính</th><th></th></tr></thead>
+      <tbody id="trong-bai"></tbody>
+    </table></div>
+  </section>
+
+  <section class="card">
+    <h2>Lịch sử ra vào</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Ảnh vào</th><th>Ảnh ra</th><th>Thẻ</th><th>Biển vào</th><th>Biển ra</th><th>Giờ vào</th><th>Giờ ra</th><th>Tiền</th></tr></thead>
+      <tbody id="lich-su"></tbody>
+    </table></div>
+  </section>
+
+  <section class="grid2">
+    <div class="card">
+      <h2>Thẻ tháng</h2>
+      <div class="row" style="margin-bottom:10px">
+        <input id="t-uid" placeholder="Mã thẻ (vd A1:B2:C3:D4)" size="20">
+        <input id="t-ten" placeholder="Chủ xe" size="14">
+        <input id="t-bien" placeholder="Biển số" size="10">
+        <button class="primary" onclick="themThe()">Thêm</button>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>Mã thẻ</th><th>Chủ xe</th><th>Biển số</th><th></th></tr></thead>
+        <tbody id="the-thang"></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>Nhật ký</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Công cụ thử (khi chưa có ESP32)</h2>
+    <div class="row" style="margin-bottom:10px">
+      <input id="g-uid" placeholder="Mã thẻ" value="A1:B2:C3:D4" size="16">
+      <button onclick="quet('vao')">Quẹt thẻ cổng vào</button>
+      <button onclick="quet('ra')">Quẹt thẻ cổng ra</button>
+    </div>
+    <div class="row" id="toggle-o"></div>
+  </section>
+</main>
+
+<script>
+const vnd = n => (n || 0).toLocaleString('vi-VN') + 'đ';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const gio = s => s ? s.slice(11, 16) + ' ' + s.slice(8, 10) + '/' + s.slice(5, 7) : '–';
+const anh = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img class="thumb" src="/anh/${encodeURIComponent(f)}" alt="ảnh"></a>` : '<span class="muted">–</span>';
+const bien = b => b ? `<span class="plate">${esc(b)}</span>` : '<span class="muted">không đọc được</span>';
+
+async function post(url, body, method = 'POST') {
+  await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : null });
+  tai();
+}
+const moCong = c => post('/api/mo_cong/' + c);
+const choRa = id => post('/api/cho_ra/' + id);
+const huyRa = id => post('/api/huy_ra/' + id);
+const xoaThe = uid => confirm('Xoá thẻ ' + uid + '?') && post('/api/the/' + encodeURIComponent(uid), null, 'DELETE');
+const quet = c => post('/api/gia_lap/the', { cong: c, uid: document.getElementById('g-uid').value });
+const doiO = so => post('/api/gia_lap/o/' + so);
+function suaBien(id, cu) {
+  const b = prompt('Nhập biển số đúng:', cu || '');
+  if (b) post('/api/sua_bien/' + id, { bien: b });
+}
+function themThe() {
+  const v = id => document.getElementById(id).value;
+  if (!v('t-uid')) return alert('Nhập mã thẻ');
+  post('/api/the', { uid: v('t-uid'), ten: v('t-ten'), bien_so: v('t-bien') });
+  ['t-uid', 't-ten', 't-bien'].forEach(id => document.getElementById(id).value = '');
+}
+
+function ve(d) {
+  const mq = document.getElementById('mqtt');
+  mq.textContent = d.mqtt ? 'MQTT: đã kết nối' : 'MQTT: mất kết nối';
+  mq.className = 'pill ' + (d.mqtt ? 'ok' : 'bad');
+
+  document.getElementById('s-trong').textContent = d.cho_trong + '/' + d.tong;
+  document.getElementById('s-xe').textContent = d.trong_bai.length + d.cho_kiem_tra.length;
+  document.getElementById('s-luot').textContent = d.luot_hom_nay;
+  document.getElementById('s-tien').textContent = vnd(d.doanh_thu_hom_nay);
+
+  document.getElementById('slots').innerHTML = d.o.map(o =>
+    `<div class="slot ${o.co_xe ? 'busy' : 'free'}">Ô ${o.so}<small>${o.co_xe ? 'Có xe' : 'Trống'}</small></div>`).join('');
+  document.getElementById('toggle-o').innerHTML = d.o.map(o =>
+    `<button onclick="doiO(${o.so})">Đổi trạng thái ô ${o.so}</button>`).join('');
+
+  const tenCong = s => s === 'mo' ? 'Đang mở' : 'Đang đóng';
+  document.getElementById('g-vao').textContent = tenCong(d.cong.vao);
+  document.getElementById('g-ra').textContent = tenCong(d.cong.ra);
+  const dv = d.gia.don_vi_phut === 60 ? 'giờ' : d.gia.don_vi_phut + ' phút';
+  document.getElementById('gia').textContent = `Giá: ${vnd(d.gia.dau)} cho ${dv} đầu, mỗi ${dv} tiếp theo ${vnd(d.gia.tiep)}. Thẻ tháng miễn phí.`;
+
+  document.getElementById('alerts').innerHTML = d.cho_kiem_tra.map(p => `
+    <div class="alert">
+      <b>⚠ Biển số không khớp – thẻ ${esc(p.uid)}</b>
+      <div class="imgs">
+        <div>Lúc vào: ${bien(p.bien_vao)}<br>${p.anh_vao ? `<img src="/anh/${encodeURIComponent(p.anh_vao)}">` : ''}</div>
+        <div>Lúc ra: ${bien(p.bien_ra)}<br>${p.anh_ra ? `<img src="/anh/${encodeURIComponent(p.anh_ra)}">` : ''}</div>
+      </div>
+      <div class="row"><button class="primary" onclick="choRa(${p.id})">Đúng xe – cho ra</button>
+      <button class="danger" onclick="huyRa(${p.id})">Không cho ra</button></div>
+    </div>`).join('');
+
+  document.getElementById('trong-bai').innerHTML = d.trong_bai.length ? d.trong_bai.map(p => `
+    <tr><td>${anh(p.anh_vao)}</td><td>${esc(p.uid)}</td><td>${bien(p.bien_vao)}</td>
+    <td>${p.loai === 'thang' ? '<span class="tag">Thẻ tháng</span>' : 'Lượt'}</td>
+    <td>${gio(p.gio_vao)}</td><td>${p.phut} phút</td><td>${vnd(p.tam_tinh)}</td>
+    <td><button onclick="suaBien(${p.id}, '${esc(p.bien_vao)}')">Sửa biển</button></td></tr>`).join('')
+    : '<tr><td colspan="8" class="empty">Chưa có xe trong bãi</td></tr>';
+
+  document.getElementById('lich-su').innerHTML = d.lich_su.length ? d.lich_su.map(p => `
+    <tr><td>${anh(p.anh_vao)}</td><td>${anh(p.anh_ra)}</td><td>${esc(p.uid)}</td>
+    <td>${bien(p.bien_vao)}</td><td>${bien(p.bien_ra)}</td><td>${gio(p.gio_vao)}</td><td>${gio(p.gio_ra)}</td>
+    <td>${vnd(p.so_tien)}</td></tr>`).join('')
+    : '<tr><td colspan="8" class="empty">Chưa có lượt xe nào</td></tr>';
+
+  document.getElementById('the-thang').innerHTML = d.the_thang.length ? d.the_thang.map(t => `
+    <tr><td>${esc(t.uid)}</td><td>${esc(t.ten)}</td><td>${bien(t.bien_so)}</td>
+    <td><button class="danger" onclick="xoaThe('${esc(t.uid)}')">Xoá</button></td></tr>`).join('')
+    : '<tr><td colspan="4" class="empty">Chưa có thẻ tháng</td></tr>';
+
+  document.getElementById('log').innerHTML = d.nhat_ky.map(n =>
+    `<div class="${n.muc}"><span class="muted">${n.thoi_gian.slice(11)}</span> ${esc(n.noi_dung)}</div>`).join('');
+}
+
+async function tai() {
+  try { ve(await (await fetch('/api/state')).json()); }
+  catch (e) { document.getElementById('mqtt').textContent = 'Mất kết nối tới Pi'; }
+}
+setInterval(tai, 2000);
+setInterval(() => document.getElementById('clock').textContent = new Date().toLocaleString('vi-VN'), 1000);
+tai();
+</script>
+</body>
+</html>

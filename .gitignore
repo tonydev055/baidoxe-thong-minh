@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Du lieu chay tren Pi (khong dua len GitHub)
+pi_server/baidoxe.db
+pi_server/anh/

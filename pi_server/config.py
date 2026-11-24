@@ -1,0 +1,51 @@
+"""
+Cấu hình hệ thống bãi đỗ xe - chạy trên Raspberry Pi 5.
+Sửa các giá trị dưới đây cho đúng với mạng / camera của bạn.
+"""
+import os
+
+# ---------------- MQTT (Mosquitto chạy trên chính Pi) ----------------
+MQTT_HOST = os.environ.get("BAIDOXE_MQTT_HOST", "localhost")
+MQTT_PORT = 1883
+MQTT_USER = ""          # để trống nếu broker cho phép ẩn danh (allow_anonymous true)
+MQTT_PASS = ""
+
+# ---------------- Bãi đỗ ----------------
+SO_O = 4                # số ô đỗ
+
+# ---------------- Camera ----------------
+# Đường dẫn webcam cổng vào / cổng ra.
+# Nên dùng đường dẫn theo cổng USB (không đổi sau khi khởi động lại):
+#   ls /dev/v4l/by-path/   -> chọn các dòng kết thúc bằng "video-index0"
+# Ví dụ: "/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1:1.0-video-index0"
+CAMERA = {
+    "vao": "/dev/video0",
+    "ra": "/dev/video2",
+}
+CAMERA_RONG = 1280
+CAMERA_CAO = 720
+
+# Vùng chứa biển số trong ảnh (tỉ lệ 0..1): (x, y, rộng, cao). None = dùng cả ảnh.
+# Ví dụ biển số nằm ở giữa, nửa dưới ảnh: (0.25, 0.45, 0.5, 0.4)
+VUNG_BIEN_SO = {
+    "vao": None,
+    "ra": None,
+}
+
+# Đặt biến môi trường BAIDOXE_GIA_LAP=1 để bỏ qua camera thật (thử trên máy tính).
+GIA_LAP_CAMERA = os.environ.get("BAIDOXE_GIA_LAP", "0") == "1"
+
+# ---------------- Tính tiền ----------------
+# Demo: tính theo PHÚT để thấy tiền tăng nhanh. Chạy thật: đổi DON_VI_PHUT = 60 (theo giờ).
+DON_VI_PHUT = 1
+GIA_LUOT_DAU = 10000    # tiền cho đơn vị thời gian đầu tiên
+GIA_LUOT_TIEP = 5000    # tiền cho mỗi đơn vị tiếp theo (chưa đủ vẫn tính tròn)
+
+# Biển số lúc ra được coi là khớp nếu giống lúc vào từ mức này trở lên (0..1).
+NGUONG_GIONG_BIEN = 0.8
+
+# ---------------- Web & lưu trữ ----------------
+WEB_PORT = 5000
+THU_MUC_GOC = os.path.dirname(os.path.abspath(__file__))
+THU_MUC_ANH = os.path.join(THU_MUC_GOC, "anh")
+DB_FILE = os.path.join(THU_MUC_GOC, "baidoxe.db")
