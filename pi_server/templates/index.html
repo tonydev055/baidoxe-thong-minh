@@ -60,6 +60,10 @@
   .log .canh_bao { color: var(--red); }
   .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--green-bg); color: var(--green); }
   .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  .cams { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .cams figure { margin: 0; }
+  img.cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #111; border-radius: 10px; border: 1px solid var(--line); display: block; }
+  .cams figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
 </style>
 </head>
 <body>
@@ -93,6 +97,14 @@
         <div class="gate"><div><b>Cổng ra</b><div class="muted" id="g-ra">–</div></div><button onclick="moCong('ra')">Mở cổng</button></div>
       </div>
       <p class="muted" id="gia" style="font-size:13px;margin:12px 0 0"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Camera trực tiếp</h2>
+    <div class="cams">
+      <figure><img class="cam" src="/video/vao" alt="Camera cổng vào"><figcaption>Cổng vào</figcaption></figure>
+      <figure><img class="cam" src="/video/ra" alt="Camera cổng ra"><figcaption>Cổng ra</figcaption></figure>
     </div>
   </section>
 

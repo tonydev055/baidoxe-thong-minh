@@ -10,11 +10,12 @@ Chạy:  python app.py
 """
 import math
 import threading
+import time
 from datetime import datetime
 from difflib import SequenceMatcher
 
 import paho.mqtt.client as mqtt
-from flask import Flask, abort, jsonify, render_template, request, send_from_directory
+from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
 
 import camera
 import config
@@ -204,6 +205,22 @@ def api_state():
         "the_thang": db.ds_the_thang(),
         "gia": {"don_vi_phut": config.DON_VI_PHUT, "dau": config.GIA_LUOT_DAU, "tiep": config.GIA_LUOT_TIEP},
     })
+
+
+@app.route("/video/<cong>")
+def video(cong):
+    """Xem webcam trực tiếp (MJPEG, khoảng 8 hình/giây)."""
+    if cong not in ("vao", "ra") or camera.jpeg_truc_tiep(cong) is None:
+        abort(404)
+
+    def tao_luong():
+        while True:
+            jpg = camera.jpeg_truc_tiep(cong)
+            if jpg:
+                yield b"--khung\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
+            time.sleep(0.12)
+
+    return Response(tao_luong(), mimetype="multipart/x-mixed-replace; boundary=khung")
 
 
 @app.route("/anh/<path:ten>")

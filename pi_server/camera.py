@@ -94,6 +94,31 @@ def khoi_dong():
             _luong[cong] = _LuongCamera(cong, nguon)
 
 
+def _khung_thong_bao(cong):
+    frame = np.full((360, 640, 3), 40, np.uint8)
+    cv2.putText(frame, f"Cong {cong.upper()}: chua co hinh", (110, 170), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
+                (200, 200, 200), 2)
+    cv2.putText(frame, "Kiem tra webcam / config.py", (150, 215), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
+                (150, 150, 150), 2)
+    return frame
+
+
+def jpeg_truc_tiep(cong, rong=640):
+    """Ảnh JPEG mới nhất của webcam (dùng cho khung xem trực tiếp trên web)."""
+    if cv2 is None:
+        return None
+    khoi_dong()
+    luong = _luong.get(cong)
+    frame = luong.lay() if luong is not None else None
+    if frame is None:
+        frame = _khung_thong_bao(cong)
+    h, w = frame.shape[:2]
+    if w > rong:
+        frame = cv2.resize(frame, (rong, int(h * rong / w)))
+    ok, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+    return jpg.tobytes() if ok else None
+
+
 def chup(cong):
     """
     Chụp 1 ảnh ở cổng 'vao' hoặc 'ra'.
