@@ -292,6 +292,7 @@ def api_gia_lap_o(so):
 
 if __name__ == "__main__":
     khoi_dong_mqtt()
+    camera.khoi_dong()
     ocr.nap_truoc()
     db.ghi_nhat_ky("Khởi động hệ thống")
     app.run(host="0.0.0.0", port=config.WEB_PORT, threaded=True)

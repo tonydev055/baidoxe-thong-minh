@@ -55,6 +55,9 @@ def doc_bien_so(frame, cong):
     if reader is None or frame is None or cv2 is None:
         return None
     anh = _cat_vung(frame, config.VUNG_BIEN_SO.get(cong))
+    h, w = anh.shape[:2]
+    if w > 800:                                   # ảnh nhỏ lại -> Pi đọc nhanh hơn nhiều
+        anh = cv2.resize(anh, (800, int(h * 800 / w)))
     xam = cv2.cvtColor(anh, cv2.COLOR_BGR2GRAY)
     try:
         doan = reader.readtext(xam, detail=0, allowlist=CHU_CHO_PHEP + "-.")
