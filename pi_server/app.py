@@ -9,8 +9,10 @@ CHƯƠNG TRÌNH CHÍNH - BÃI ĐỖ XE THÔNG MINH (chạy trên Raspberry Pi 5)
 Chạy:  python app.py
 """
 import math
+import sys
 import threading
 import time
+import traceback
 from datetime import datetime
 from difflib import SequenceMatcher
 
@@ -22,6 +24,13 @@ import config
 import db
 import ocr
 
+# In tiếng Việt ra console Windows / file log không bị lỗi UnicodeEncodeError
+for _luong_in in (sys.stdout, sys.stderr):
+    try:
+        _luong_in.reconfigure(errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 app = Flask(__name__)
 
 trang_thai = {
@@ -30,6 +39,7 @@ trang_thai = {
     "mqtt": False,
 }
 khoa_cong = {"vao": threading.Lock(), "ra": threading.Lock()}
+chup_thu_gan_nhat = {"vao": None, "ra": None}   # kết quả nút "Chụp thử" (căn góc camera)
 client = None
 
 
@@ -125,8 +135,42 @@ def xu_ly_ra(uid):
                            f"chờ người trông xe kiểm tra", "canh_bao")
 
 
+def xu_ly_the(cong, uid):
+    """Xử lý quẹt thẻ. Có lỗi bất ngờ vẫn trả lời 'tuchoi' để cổng không phải chờ hết 25 giây."""
+    try:
+        (xu_ly_vao if cong == "vao" else xu_ly_ra)(uid)
+    except Exception as e:
+        traceback.print_exc()
+        gui_lenh(cong, "tuchoi")
+        try:
+            db.ghi_nhat_ky(f"Lỗi xử lý thẻ {uid} ở cổng {cong}: {e}", "canh_bao")
+        except Exception:
+            pass
+
+
 def chay_nen(ham, *args):
     threading.Thread(target=ham, args=args, daemon=True).start()
+
+
+def xoa_luot(phien, ly_do):
+    """Xoá hẳn 1 lượt (kèm ảnh) - dùng khi test để quẹt lại thẻ đó."""
+    db.xoa_phien(phien["id"])
+    camera.xoa_anh(phien.get("anh_vao"), phien.get("anh_ra"))
+    db.ghi_nhat_ky(f"{ly_do}: xoá lượt #{phien['id']} (thẻ {phien['uid']}, "
+                   f"biển {phien['bien_vao'] or 'không đọc được'})", "canh_bao")
+
+
+def don_anh_cu_dinh_ky():
+    """Mỗi 6 giờ xoá ảnh cũ hơn GIU_ANH_NGAY ngày (giữ lại ảnh của xe còn trong bãi)."""
+    while True:
+        try:
+            giu = {f for p in db.ds_chua_ra() for f in (p["anh_vao"], p["anh_ra"]) if f}
+            so = camera.xoa_anh_cu(config.GIU_ANH_NGAY, giu)
+            if so:
+                db.ghi_nhat_ky(f"Đã xoá {so} ảnh cũ hơn {config.GIU_ANH_NGAY} ngày")
+        except Exception:
+            traceback.print_exc()
+        time.sleep(6 * 3600)
 
 
 # ======================= MQTT =======================
@@ -152,11 +196,8 @@ def on_message(cl, userdata, msg):
         so = int(ten)
         if so in trang_thai["o"]:
             trang_thai["o"][so] = (noi_dung == "1")
-    elif loai == "the" and noi_dung:
-        if ten == "vao":
-            chay_nen(xu_ly_vao, noi_dung)
-        elif ten == "ra":
-            chay_nen(xu_ly_ra, noi_dung)
+    elif loai == "the" and noi_dung and ten in ("vao", "ra"):
+        chay_nen(xu_ly_the, ten, noi_dung.upper())
     elif loai == "cong" and ten in trang_thai["cong"]:
         trang_thai["cong"][ten] = noi_dung
 
@@ -204,6 +245,8 @@ def api_state():
         "nhat_ky": db.nhat_ky_moi(20),
         "the_thang": db.ds_the_thang(),
         "gia": {"don_vi_phut": config.DON_VI_PHUT, "dau": config.GIA_LUOT_DAU, "tiep": config.GIA_LUOT_TIEP},
+        "vua_vao": db.phien_vua_vao(),
+        "chup_thu": chup_thu_gan_nhat,
     })
 
 
@@ -269,6 +312,51 @@ def api_sua_bien(phien_id):
     return jsonify(ok=True)
 
 
+# ---------- Công cụ test: xoá lượt xe / chụp thử để căn góc camera ----------
+@app.delete("/api/phien/<int:phien_id>")
+def api_xoa_phien(phien_id):
+    """Xoá hẳn 1 lượt xe (kèm ảnh). Xoá xong có thể quẹt lại đúng thẻ đó."""
+    phien = db.lay_phien(phien_id)
+    if not phien:
+        abort(404)
+    xoa_luot(phien, "Xoá bằng tay từ trang web")
+    return jsonify(ok=True)
+
+
+@app.post("/api/xoa_xe_vua_vao")
+def api_xoa_xe_vua_vao():
+    """Xoá lượt xe vào gần nhất còn trong bãi -> quẹt lại thẻ đó để thử góc camera."""
+    phien = db.phien_vua_vao()
+    if not phien:
+        return jsonify(ok=False, loi="Không có xe nào trong bãi"), 404
+    xoa_luot(phien, "Xoá xe vừa vào")
+    return jsonify(ok=True, uid=phien["uid"])
+
+
+@app.post("/api/xoa_tat_ca_trong_bai")
+def api_xoa_tat_ca_trong_bai():
+    """Xoá mọi lượt chưa ra (dọn sạch sau khi test). Lịch sử xe đã ra giữ nguyên."""
+    ds = db.ds_chua_ra()
+    for p in ds:
+        xoa_luot(p, "Dọn bãi sau khi test")
+    return jsonify(ok=True, so_luot=len(ds))
+
+
+@app.post("/api/chup_thu/<cong>")
+def api_chup_thu(cong):
+    """Chụp 1 ảnh + đọc biển số nhưng KHÔNG tạo lượt xe (dùng để căn góc camera)."""
+    if cong not in ("vao", "ra"):
+        abort(404)
+    with khoa_cong[cong]:
+        ten_cu = (chup_thu_gan_nhat[cong] or {}).get("anh")
+        ten_anh, frame, that = camera.chup(cong)
+        bien = ocr.doc_bien_so(frame, cong) if that else None
+    camera.xoa_anh(ten_cu)                       # chỉ giữ ảnh chụp thử mới nhất
+    chup_thu_gan_nhat[cong] = {"anh": ten_anh, "bien": bien, "that": that,
+                               "luc": dinh_dang(bay_gio())}
+    return jsonify(ok=True, **chup_thu_gan_nhat[cong])
+
+
 @app.post("/api/the")
 def api_them_the():
     d = request.get_json(silent=True) or {}
@@ -294,7 +382,7 @@ def api_gia_lap_the():
     cong, uid = d.get("cong"), (d.get("uid") or "").strip().upper()
     if cong not in ("vao", "ra") or not uid:
         abort(400)
-    chay_nen(xu_ly_vao if cong == "vao" else xu_ly_ra, uid)
+    chay_nen(xu_ly_the, cong, uid)
     return jsonify(ok=True)
 
 
@@ -311,5 +399,6 @@ if __name__ == "__main__":
     khoi_dong_mqtt()
     camera.khoi_dong()
     ocr.nap_truoc()
+    chay_nen(don_anh_cu_dinh_ky)
     db.ghi_nhat_ky("Khởi động hệ thống")
     app.run(host="0.0.0.0", port=config.WEB_PORT, threaded=True)

@@ -123,6 +123,22 @@ def sua_bien_vao(phien_id, bien):
     _exec("UPDATE phien SET bien_vao = ? WHERE id = ?", (bien, phien_id))
 
 
+def xoa_phien(phien_id):
+    """Xoá hẳn 1 lượt gửi xe (dùng khi test: xoá xe vừa vào để quẹt lại thẻ đó)."""
+    _exec("DELETE FROM phien WHERE id = ?", (phien_id,))
+
+
+def phien_vua_vao():
+    """Lượt xe vào gần nhất còn trong bãi (hoặc đang chờ kiểm tra)."""
+    return _query("SELECT * FROM phien WHERE trang_thai IN ('trong_bai', 'cho_kiem_tra') "
+                  "ORDER BY id DESC LIMIT 1", one=True)
+
+
+def ds_chua_ra():
+    """Tất cả lượt chưa ra (trong bãi + chờ kiểm tra)."""
+    return _query("SELECT * FROM phien WHERE trang_thai IN ('trong_bai', 'cho_kiem_tra') ORDER BY id DESC")
+
+
 def ds_theo_trang_thai(trang_thai):
     return _query("SELECT * FROM phien WHERE trang_thai = ? ORDER BY id DESC", (trang_thai,))
 

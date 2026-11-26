@@ -73,6 +73,17 @@ Mở trình duyệt trên laptop: **`http://<IP-Pi>:5000`**
 
 **Cách 1 – ngay trên trang web**: phần **"Công cụ thử"** cuối trang có nút quẹt thẻ cổng vào/ra và nút đổi trạng thái từng ô.
 
+**Căn góc camera / test lặp lại một thẻ** – ngay dưới khung **"Camera trực tiếp"**:
+
+| Nút | Tác dụng |
+|---|---|
+| **Chụp + đọc biển** (cổng vào / ra) | Chụp 1 ảnh và đọc biển số nhưng **không tạo lượt xe**. Chỉnh camera rồi bấm lại đến khi đọc đúng biển |
+| **Xe vừa vào → Xoá để quẹt lại** | Xoá lượt xe vào gần nhất (kèm ảnh) để quẹt lại đúng thẻ đó ở cổng vào |
+| **Xoá** (từng dòng trong "Xe đang trong bãi") | Xoá 1 lượt bất kỳ |
+| **Xoá tất cả (dọn sau khi test)** | Xoá mọi xe trong bãi / chờ kiểm tra. Lịch sử xe đã ra vẫn giữ |
+
+Ảnh cũ hơn `GIU_ANH_NGAY` ngày (mặc định 30, trong `config.py`) được tự xoá để không đầy thẻ nhớ.
+
 **Cách 2 – giả lập MQTT** (mở Terminal thứ 2 trên Pi, `source venv/bin/activate` trước):
 
 ```bash

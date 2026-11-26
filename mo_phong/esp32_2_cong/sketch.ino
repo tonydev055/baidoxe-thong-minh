@@ -109,12 +109,15 @@ bool docThe(MFRC522* r, String& uid) {
   return true;
 }
 
-void guiMQTT(const char* loai, const char* ten, const char* noiDung, bool retain) {
+// Trả về true nếu đã gửi được (false: chưa kết nối MQTT hoặc gửi lỗi)
+bool guiMQTT(const char* loai, const char* ten, const char* noiDung, bool retain) {
 #if DUNG_MQTT
-  if (!mqtt.connected()) return;
+  if (!mqtt.connected()) return false;
   char topic[32];
   snprintf(topic, sizeof(topic), "baidoxe/%s/%s", loai, ten);
-  mqtt.publish(topic, noiDung, retain);
+  return mqtt.publish(topic, noiDung, retain);
+#else
+  return false;
 #endif
 }
 
@@ -147,8 +150,14 @@ void xuLyCong(Cong& c) {
         Serial.printf("[%s] Quet the %s\n", c.ten, uid.c_str());
         bip(c.coi, 100);
 #if DUNG_MQTT
-        guiMQTT("the", c.ten, uid.c_str(), false);   // Pi chụp ảnh, đọc biển, trả lời
-        datTrangThai(c, CHO_DUYET);
+        if (guiMQTT("the", c.ten, uid.c_str(), false)) {   // Pi chụp ảnh, đọc biển, trả lời
+          datTrangThai(c, CHO_DUYET);
+        } else {
+          // Chưa nối được máy chủ: báo ngay thay vì bắt xe chờ hết CHO_DUYET_MS
+          Serial.printf("[%s] Chua ket noi MQTT, khong gui duoc the
+", c.ten);
+          bip(c.coi, 600);
+        }
 #else
         moCong(c);                                    // mô phỏng: tự cho qua
 #endif
@@ -217,6 +226,8 @@ void giuKetNoi() {
   if (ok) {
     Serial.println("MQTT: da ket noi");
     mqtt.subscribe("baidoxe/lenh/+");
+    for (auto& c : cong)   // báo lại trạng thái cổng hiện tại cho trang web
+      guiMQTT("cong", c.ten, (c.tt == MO || c.tt == DANG_QUA) ? "mo" : "dong", true);
   } else {
     Serial.printf("MQTT: loi ket noi (%d), thu lai sau 3s\n", mqtt.state());
   }

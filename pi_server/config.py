@@ -18,10 +18,18 @@ SO_O = 4                # số ô đỗ
 # Nên dùng đường dẫn theo cổng USB (không đổi sau khi khởi động lại):
 #   ls /dev/v4l/by-path/   -> chọn các dòng kết thúc bằng "video-index0"
 # Ví dụ: "/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:1:1.0-video-index0"
-CAMERA = {
-    "vao": "/dev/video0",
-    "ra": "/dev/video2",
-}
+# Chạy thử trên laptop Windows: dùng số webcam (0, 1, ...) - chạy kiem_tra_cam.py để biết số.
+# Đặt None cho cổng không có webcam (cổng đó sẽ dùng ảnh + biển số giả lập).
+if os.name == "nt":
+    CAMERA = {
+        "vao": 0,
+        "ra": 1,
+    }
+else:
+    CAMERA = {
+        "vao": "/dev/video0",
+        "ra": "/dev/video2",
+    }
 CAMERA_RONG = 1280
 CAMERA_CAO = 720
 
@@ -48,4 +56,5 @@ NGUONG_GIONG_BIEN = 0.8
 WEB_PORT = 5000
 THU_MUC_GOC = os.path.dirname(os.path.abspath(__file__))
 THU_MUC_ANH = os.path.join(THU_MUC_GOC, "anh")
+GIU_ANH_NGAY = 30       # tự xoá ảnh cũ hơn bấy nhiêu ngày (0 = không bao giờ xoá)
 DB_FILE = os.path.join(THU_MUC_GOC, "baidoxe.db")

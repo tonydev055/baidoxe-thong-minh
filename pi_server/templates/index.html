@@ -64,6 +64,10 @@
   .cams figure { margin: 0; }
   img.cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #111; border-radius: 10px; border: 1px solid var(--line); display: block; }
   .cams figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .test { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+  .test > div { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; align-content: start; }
+  .test img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #111; border-radius: 8px; }
+  .test .ket-qua { font-size: 14px; }
 </style>
 </head>
 <body>
@@ -106,10 +110,28 @@
       <figure><img class="cam" src="/video/vao" alt="Camera cổng vào"><figcaption>Cổng vào</figcaption></figure>
       <figure><img class="cam" src="/video/ra" alt="Camera cổng ra"><figcaption>Cổng ra</figcaption></figure>
     </div>
+    <div class="test">
+      <div>
+        <div class="row"><b>Chụp thử cổng vào</b><button onclick="chupThu('vao', this)">Chụp + đọc biển</button></div>
+        <div id="ct-vao" class="ket-qua muted">Chưa chụp. Không tạo lượt xe, dùng để căn góc camera.</div>
+      </div>
+      <div>
+        <div class="row"><b>Chụp thử cổng ra</b><button onclick="chupThu('ra', this)">Chụp + đọc biển</button></div>
+        <div id="ct-ra" class="ket-qua muted">Chưa chụp. Không tạo lượt xe, dùng để căn góc camera.</div>
+      </div>
+      <div>
+        <div class="row"><b>Xe vừa vào</b>
+          <button class="danger" id="btn-xoa-vua-vao" onclick="xoaXeVuaVao()">Xoá để quẹt lại</button></div>
+        <div id="vua-vao" class="ket-qua muted">Chưa có xe trong bãi</div>
+      </div>
+    </div>
   </section>
 
   <section class="card">
-    <h2>Xe đang trong bãi</h2>
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0">Xe đang trong bãi</h2>
+      <button class="danger" onclick="donBai()">Xoá tất cả (dọn sau khi test)</button>
+    </div>
     <div class="scroll"><table>
       <thead><tr><th>Ảnh vào</th><th>Thẻ</th><th>Biển số</th><th>Loại</th><th>Giờ vào</th><th>Đã đỗ</th><th>Tạm tính</th><th></th></tr></thead>
       <tbody id="trong-bai"></tbody>
@@ -159,17 +181,46 @@
 const vnd = n => (n || 0).toLocaleString('vi-VN') + 'đ';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const gio = s => s ? s.slice(11, 16) + ' ' + s.slice(8, 10) + '/' + s.slice(5, 7) : '–';
-const anh = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img class="thumb" src="/anh/${encodeURIComponent(f)}" alt="ảnh"></a>` : '<span class="muted">–</span>';
+// Ảnh đã bị xoá (dọn ảnh cũ / xoá lượt test) thì ẩn đi thay vì hiện biểu tượng ảnh hỏng
+const KHI_LOI_ANH = `onerror="this.style.visibility='hidden'"`;
+const anh = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img class="thumb" src="/anh/${encodeURIComponent(f)}" alt="ảnh" ${KHI_LOI_ANH}></a>` : '<span class="muted">–</span>';
+const anhTo = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img src="/anh/${encodeURIComponent(f)}" alt="ảnh" ${KHI_LOI_ANH}></a>` : '';
 const bien = b => b ? `<span class="plate">${esc(b)}</span>` : '<span class="muted">không đọc được</span>';
 
 async function post(url, body, method = 'POST') {
-  await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : null });
+  let d = {};
+  try {
+    const r = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : null });
+    d = await r.json().catch(() => ({}));
+    if (!r.ok) alert(d.loi || ('Lỗi ' + r.status));
+  } catch (e) {
+    alert('Không gửi được lệnh tới Pi');
+  }
   tai();
+  return d;
 }
 const moCong = c => post('/api/mo_cong/' + c);
 const choRa = id => post('/api/cho_ra/' + id);
 const huyRa = id => post('/api/huy_ra/' + id);
-const xoaThe = uid => confirm('Xoá thẻ ' + uid + '?') && post('/api/the/' + encodeURIComponent(uid), null, 'DELETE');
+// Mã thẻ lấy từ data-uid (không ghép thẳng vào onclick -> không lỗi khi mã có ký tự lạ)
+const xoaThe = nut => confirm('Xoá thẻ ' + nut.dataset.uid + '?') && post('/api/the/' + encodeURIComponent(nut.dataset.uid), null, 'DELETE');
+const xoaLuot = (id, uid) => confirm(`Xoá lượt #${id} (thẻ ${uid})? Xoá xong có thể quẹt lại thẻ này.`) && post('/api/phien/' + id, null, 'DELETE');
+const donBai = () => confirm('Xoá TẤT CẢ xe đang trong bãi / chờ kiểm tra? (lịch sử xe đã ra vẫn giữ)') && post('/api/xoa_tat_ca_trong_bai');
+async function xoaXeVuaVao() {
+  const d = await post('/api/xoa_xe_vua_vao');
+  if (d.ok) document.getElementById('vua-vao').textContent = `Đã xoá thẻ ${d.uid}. Quẹt lại thẻ để thử tiếp.`;
+}
+async function chupThu(c, nut) {
+  nut.disabled = true; nut.textContent = 'Đang chụp...';
+  await post('/api/chup_thu/' + c);
+  nut.disabled = false; nut.textContent = 'Chụp + đọc biển';
+}
+function veChupThu(c, k) {
+  if (!k) return;
+  document.getElementById('ct-' + c).innerHTML = `${anhTo(k.anh)}
+    <div>Biển đọc được: ${k.that ? bien(k.bien) : '<span class="muted">không có webcam (giả lập)</span>'}
+    <span class="muted"> · lúc ${k.luc.slice(11)}</span></div>`;
+}
 const quet = c => post('/api/gia_lap/the', { cong: c, uid: document.getElementById('g-uid').value });
 const doiO = so => post('/api/gia_lap/o/' + so);
 function suaBien(id, cu) {
@@ -212,14 +263,16 @@ function ve(d) {
         <div>Lúc ra: ${bien(p.bien_ra)}<br>${p.anh_ra ? `<img src="/anh/${encodeURIComponent(p.anh_ra)}">` : ''}</div>
       </div>
       <div class="row"><button class="primary" onclick="choRa(${p.id})">Đúng xe – cho ra</button>
-      <button class="danger" onclick="huyRa(${p.id})">Không cho ra</button></div>
+      <button class="danger" onclick="huyRa(${p.id})">Không cho ra</button>
+      <button onclick="xoaLuot(${p.id}, '${esc(p.uid)}')">Xoá lượt (test)</button></div>
     </div>`).join('');
 
   document.getElementById('trong-bai').innerHTML = d.trong_bai.length ? d.trong_bai.map(p => `
     <tr><td>${anh(p.anh_vao)}</td><td>${esc(p.uid)}</td><td>${bien(p.bien_vao)}</td>
     <td>${p.loai === 'thang' ? '<span class="tag">Thẻ tháng</span>' : 'Lượt'}</td>
     <td>${gio(p.gio_vao)}</td><td>${p.phut} phút</td><td>${vnd(p.tam_tinh)}</td>
-    <td><button onclick="suaBien(${p.id}, '${esc(p.bien_vao)}')">Sửa biển</button></td></tr>`).join('')
+    <td><div class="row"><button onclick="suaBien(${p.id}, '${esc(p.bien_vao)}')">Sửa biển</button>
+    <button class="danger" onclick="xoaLuot(${p.id}, '${esc(p.uid)}')">Xoá</button></div></td></tr>`).join('')
     : '<tr><td colspan="8" class="empty">Chưa có xe trong bãi</td></tr>';
 
   document.getElementById('lich-su').innerHTML = d.lich_su.length ? d.lich_su.map(p => `
@@ -230,8 +283,17 @@ function ve(d) {
 
   document.getElementById('the-thang').innerHTML = d.the_thang.length ? d.the_thang.map(t => `
     <tr><td>${esc(t.uid)}</td><td>${esc(t.ten)}</td><td>${bien(t.bien_so)}</td>
-    <td><button class="danger" onclick="xoaThe('${esc(t.uid)}')">Xoá</button></td></tr>`).join('')
+    <td><button class="danger" data-uid="${esc(t.uid)}" onclick="xoaThe(this)">Xoá</button></td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Chưa có thẻ tháng</td></tr>';
+
+  veChupThu('vao', d.chup_thu.vao);
+  veChupThu('ra', d.chup_thu.ra);
+  const v = d.vua_vao;
+  document.getElementById('btn-xoa-vua-vao').disabled = !v;
+  if (v) document.getElementById('vua-vao').innerHTML = `${anhTo(v.anh_vao)}
+    <div>Thẻ <b>${esc(v.uid)}</b> · ${bien(v.bien_vao)} · <span class="muted">${gio(v.gio_vao)}</span></div>`;
+  else if (!document.getElementById('vua-vao').textContent.startsWith('Đã xoá'))
+    document.getElementById('vua-vao').textContent = 'Chưa có xe trong bãi';
 
   document.getElementById('log').innerHTML = d.nhat_ky.map(n =>
     `<div class="${n.muc}"><span class="muted">${n.thoi_gian.slice(11)}</span> ${esc(n.noi_dung)}</div>`).join('');
