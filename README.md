@@ -1,4 +1,4 @@
-# Bãi đỗ xe thông minh (Team1 IOT – SIC)
+# Bãi đỗ xe thông minh (Secote Vn)
 
 Mô hình bãi đỗ xe thu nhỏ dùng cảm biến siêu âm phát hiện chỗ trống, quẹt thẻ RFID + webcam đọc biển số ở cổng.
 
