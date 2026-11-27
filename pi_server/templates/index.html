@@ -21,7 +21,7 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
            padding: 14px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
   header h1 { font-size: 20px; margin: 0; font-weight: 600; }
-  .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+  .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; white-space: nowrap; }
   .pill.ok { background: var(--green-bg); color: var(--green); }
   .pill.bad { background: var(--red-bg); color: var(--red); }
   main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
@@ -64,14 +64,29 @@
   .cams figure { margin: 0; }
   img.cam { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #111; border-radius: 10px; border: 1px solid var(--line); display: block; }
   .cams figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .test { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+  .test > div { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; align-content: start; }
+  .test img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #111; border-radius: 8px; }
+  .test .ket-qua { font-size: 14px; }
+  .cho { font-size: 13px; margin-top: 4px; display: grid; gap: 6px; justify-items: start; }
+  .cho:empty { display: none; }
+  .cho .dem { color: var(--amber); font-weight: 600; }
+  .pill.warn { background: var(--amber-bg); color: var(--amber); }
+  .pill.gray { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .slot.err { background: var(--amber-bg); color: var(--amber); border-color: var(--amber); }
+  td.nhom { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  tr.loi td { background: var(--red-bg); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 <body>
 <header>
   <h1>Bãi đỗ xe thông minh</h1>
   <div class="row">
+    <a href="#thiet-bi" id="tb-tom-tat" class="pill gray" style="text-decoration:none">Thiết bị: –</a>
     <span id="mqtt" class="pill bad">MQTT: mất kết nối</span>
     <span id="clock" class="muted"></span>
+    <a href="/dang_xuat" class="muted" style="font-size:13px">Đăng xuất{% if nguoi_dung %} ({{ nguoi_dung }}){% endif %}</a>
   </div>
 </header>
 
@@ -83,7 +98,19 @@
     <div class="stat"><div class="label">Doanh thu hôm nay</div><div class="value" id="s-tien">–</div></div>
   </section>
 
+  <div id="bao-mat"></div>
   <div id="alerts"></div>
+
+  <section class="card" id="thiet-bi">
+    <h2>Tình trạng thiết bị</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Bộ phận</th><th>Thiết bị</th><th>Trạng thái</th><th>Ghi chú / cách xử lý</th></tr></thead>
+      <tbody id="tb-loi"></tbody>
+    </table></div>
+    <details><summary id="tb-khac-tieu-de">Các thiết bị khác</summary>
+      <div class="scroll"><table><tbody id="tb-khac"></tbody></table></div>
+    </details>
+  </section>
 
   <section class="grid2">
     <div class="card">
@@ -93,8 +120,10 @@
     <div class="card">
       <h2>Cổng</h2>
       <div class="gates">
-        <div class="gate"><div><b>Cổng vào</b><div class="muted" id="g-vao">–</div></div><button onclick="moCong('vao')">Mở cổng</button></div>
-        <div class="gate"><div><b>Cổng ra</b><div class="muted" id="g-ra">–</div></div><button onclick="moCong('ra')">Mở cổng</button></div>
+        <div class="gate"><div><b>Cổng vào</b><div class="muted" id="g-vao">–</div><div id="cho-vao" class="cho"></div></div>
+          <div class="row"><button onclick="moCong('vao')">Mở cổng</button><button onclick="dongCong('vao')">Đóng cổng</button></div></div>
+        <div class="gate"><div><b>Cổng ra</b><div class="muted" id="g-ra">–</div><div id="cho-ra" class="cho"></div></div>
+          <div class="row"><button onclick="moCong('ra')">Mở cổng</button><button onclick="dongCong('ra')">Đóng cổng</button></div></div>
       </div>
       <p class="muted" id="gia" style="font-size:13px;margin:12px 0 0"></p>
     </div>
@@ -106,10 +135,20 @@
       <figure><img class="cam" src="/video/vao" alt="Camera cổng vào"><figcaption>Cổng vào</figcaption></figure>
       <figure><img class="cam" src="/video/ra" alt="Camera cổng ra"><figcaption>Cổng ra</figcaption></figure>
     </div>
+    <div class="test">
+      <div>
+        <div class="row"><b>Xe vừa vào</b>
+          <button class="danger" id="btn-xoa-vua-vao" onclick="xoaXeVuaVao()">Xoá để quẹt lại</button></div>
+        <div id="vua-vao" class="ket-qua muted">Chưa có xe trong bãi</div>
+      </div>
+    </div>
   </section>
 
   <section class="card">
-    <h2>Xe đang trong bãi</h2>
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0">Xe đang trong bãi</h2>
+      <button class="danger" onclick="donBai()">Xoá tất cả (dọn sau khi test)</button>
+    </div>
     <div class="scroll"><table>
       <thead><tr><th>Ảnh vào</th><th>Thẻ</th><th>Biển số</th><th>Loại</th><th>Giờ vào</th><th>Đã đỗ</th><th>Tạm tính</th><th></th></tr></thead>
       <tbody id="trong-bai"></tbody>
@@ -150,6 +189,8 @@
       <input id="g-uid" placeholder="Mã thẻ" value="A1:B2:C3:D4" size="16">
       <button onclick="quet('vao')">Quẹt thẻ cổng vào</button>
       <button onclick="quet('ra')">Quẹt thẻ cổng ra</button>
+      <button onclick="xeQua('vao')">Xe đi qua cổng vào</button>
+      <button onclick="xeQua('ra')">Xe đi qua cổng ra</button>
     </div>
     <div class="row" id="toggle-o"></div>
   </section>
@@ -159,17 +200,47 @@
 const vnd = n => (n || 0).toLocaleString('vi-VN') + 'đ';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const gio = s => s ? s.slice(11, 16) + ' ' + s.slice(8, 10) + '/' + s.slice(5, 7) : '–';
-const anh = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img class="thumb" src="/anh/${encodeURIComponent(f)}" alt="ảnh"></a>` : '<span class="muted">–</span>';
+// Ảnh đã bị xoá (dọn ảnh cũ / xoá lượt test) thì ẩn đi thay vì hiện biểu tượng ảnh hỏng
+const KHI_LOI_ANH = `onerror="this.style.visibility='hidden'"`;
+const anh = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img class="thumb" src="/anh/${encodeURIComponent(f)}" alt="ảnh" ${KHI_LOI_ANH}></a>` : '<span class="muted">–</span>';
+const anhTo = f => f ? `<a href="/anh/${encodeURIComponent(f)}" target="_blank"><img src="/anh/${encodeURIComponent(f)}" alt="ảnh" ${KHI_LOI_ANH}></a>` : '';
 const bien = b => b ? `<span class="plate">${esc(b)}</span>` : '<span class="muted">không đọc được</span>';
 
 async function post(url, body, method = 'POST') {
-  await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : null });
+  let d = {};
+  try {
+    const r = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : null });
+    d = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.href = '/dang_nhap'; return d; }
+    if (!r.ok) alert(d.loi || ('Lỗi ' + r.status));
+  } catch (e) {
+    alert('Không gửi được lệnh tới Pi');
+  }
   tai();
+  return d;
 }
 const moCong = c => post('/api/mo_cong/' + c);
 const choRa = id => post('/api/cho_ra/' + id);
 const huyRa = id => post('/api/huy_ra/' + id);
-const xoaThe = uid => confirm('Xoá thẻ ' + uid + '?') && post('/api/the/' + encodeURIComponent(uid), null, 'DELETE');
+// Mã thẻ lấy từ data-uid (không ghép thẳng vào onclick -> không lỗi khi mã có ký tự lạ)
+const xoaThe = nut => confirm('Xoá thẻ ' + nut.dataset.uid + '?') && post('/api/the/' + encodeURIComponent(nut.dataset.uid), null, 'DELETE');
+const xoaLuot = (id, uid) => confirm(`Xoá lượt #${id} (thẻ ${uid})? Xoá xong có thể quẹt lại thẻ này.`) && post('/api/phien/' + id, null, 'DELETE');
+const donBai = () => confirm('Xoá TẤT CẢ xe đang trong bãi / chờ kiểm tra? (lịch sử xe đã ra vẫn giữ)') && post('/api/xoa_tat_ca_trong_bai');
+async function xoaXeVuaVao() {
+  const d = await post('/api/xoa_xe_vua_vao');
+  if (d.ok) document.getElementById('vua-vao').textContent = `Đã xoá thẻ ${d.uid}. Quẹt lại thẻ để thử tiếp.`;
+}
+const dongCong = c => post('/api/dong_cong/' + c);
+const xeQua = c => post('/api/gia_lap/qua/' + c);
+// Nhân viên xác nhận khi quẹt thẻ xong mà xe chưa đi qua cảm biến
+const HOI = {
+  vao: { viec: 'vào', co: 'Xe vẫn vào – giữ cổng mở', khong: 'Xe không vào – xoá thẻ, đóng cổng',
+         hoiKhong: uid => `Xe thẻ ${uid} không vào nữa? Thẻ sẽ bị xoá khỏi bãi và thanh chắn hạ xuống.` },
+  ra:  { viec: 'ra', co: 'Xe vẫn ra – giữ cổng mở', khong: 'Xe không ra – đóng cổng, giữ xe trong bãi',
+         hoiKhong: uid => `Xe thẻ ${uid} không ra nữa? Thanh chắn hạ xuống, xe vẫn tính là trong bãi.` },
+};
+const choTiep = c => post(`/api/cho_qua/${c}/cho_tiep`);
+const huyCho = (c, uid) => confirm(HOI[c].hoiKhong(uid)) && post(`/api/cho_qua/${c}/huy`);
 const quet = c => post('/api/gia_lap/the', { cong: c, uid: document.getElementById('g-uid').value });
 const doiO = so => post('/api/gia_lap/o/' + so);
 function suaBien(id, cu) {
@@ -184,6 +255,9 @@ function themThe() {
 }
 
 function ve(d) {
+  document.getElementById('bao-mat').innerHTML = d.canh_bao_bao_mat.map(t =>
+    `<div class="alert" style="margin-bottom:8px">🔒 ${esc(t)}</div>`).join('');
+
   const mq = document.getElementById('mqtt');
   mq.textContent = d.mqtt ? 'MQTT: đã kết nối' : 'MQTT: mất kết nối';
   mq.className = 'pill ' + (d.mqtt ? 'ok' : 'bad');
@@ -193,8 +267,26 @@ function ve(d) {
   document.getElementById('s-luot').textContent = d.luot_hom_nay;
   document.getElementById('s-tien').textContent = vnd(d.doanh_thu_hom_nay);
 
-  document.getElementById('slots').innerHTML = d.o.map(o =>
-    `<div class="slot ${o.co_xe ? 'busy' : 'free'}">Ô ${o.so}<small>${o.co_xe ? 'Có xe' : 'Trống'}</small></div>`).join('');
+  document.getElementById('slots').innerHTML = d.o.map(o => d.o_loi.includes(o.so)
+    ? `<div class="slot err">Ô ${o.so}<small>Lỗi cảm biến</small></div>`
+    : `<div class="slot ${o.co_xe ? 'busy' : 'free'}">Ô ${o.so}<small>${o.co_xe ? 'Có xe' : 'Trống'}</small></div>`).join('');
+
+  // Tình trạng thiết bị: lỗi / cảnh báo / chưa rõ hiện ngay, còn lại gom vào "Các thiết bị khác"
+  const TT = { ok: ['ok', 'Bình thường'], loi: ['bad', 'LỖI'], canh_bao: ['warn', 'Cảnh báo'],
+               chua_ro: ['gray', 'Chưa rõ'], khong_do: ['gray', 'Tự kiểm tra bằng mắt'] };
+  const dongTB = t => `<tr class="${t.tt === 'loi' ? 'loi' : ''}"><td class="nhom">${esc(t.nhom)}</td><td>${esc(t.ten)}</td>
+    <td><span class="pill ${TT[t.tt][0]}">${TT[t.tt][1]}</span></td><td>${esc(t.ghi_chu)}</td></tr>`;
+  const canXem = d.thiet_bi.filter(t => ['loi', 'canh_bao', 'chua_ro'].includes(t.tt));
+  const conLai = d.thiet_bi.filter(t => !canXem.includes(t));
+  document.getElementById('tb-loi').innerHTML = canXem.length ? canXem.map(dongTB).join('')
+    : '<tr><td colspan="4" class="empty">Tất cả thiết bị tự kiểm tra được đều bình thường</td></tr>';
+  document.getElementById('tb-khac').innerHTML = conLai.map(dongTB).join('');
+  document.getElementById('tb-khac-tieu-de').textContent = `Các thiết bị khác (${conLai.length})`;
+  const soLoi = d.thiet_bi.filter(t => t.tt === 'loi').length;
+  const soCB = d.thiet_bi.filter(t => t.tt === 'canh_bao').length;
+  const tom = document.getElementById('tb-tom-tat');
+  tom.textContent = soLoi ? `Thiết bị: ${soLoi} lỗi` : soCB ? `Thiết bị: ${soCB} cảnh báo` : 'Thiết bị: bình thường';
+  tom.className = 'pill ' + (soLoi ? 'bad' : soCB ? 'warn' : 'ok');
   document.getElementById('toggle-o').innerHTML = d.o.map(o =>
     `<button onclick="doiO(${o.so})">Đổi trạng thái ô ${o.so}</button>`).join('');
 
@@ -204,7 +296,24 @@ function ve(d) {
   const dv = d.gia.don_vi_phut === 60 ? 'giờ' : d.gia.don_vi_phut + ' phút';
   document.getElementById('gia').textContent = `Giá: ${vnd(d.gia.dau)} cho ${dv} đầu, mỗi ${dv} tiếp theo ${vnd(d.gia.tiep)}. Thẻ tháng miễn phí.`;
 
-  document.getElementById('alerts').innerHTML = d.cho_kiem_tra.map(p => `
+  // Lượt đang chờ xe đi qua: dòng nhỏ trong khung Cổng, quá giờ thì hiện cảnh báo to ở đầu trang
+  const canhBaoCho = [];
+  for (const c of ['vao', 'ra']) {
+    const k = d.cho_qua[c], h = HOI[c], o = document.getElementById('cho-' + c);
+    if (!k) { o.innerHTML = ''; continue; }
+    const uid = esc(k.uid), nutKhong = `<button class="danger" onclick="huyCho('${c}', '${uid}')">${h.khong}</button>`;
+    o.innerHTML = `<span>Chờ xe thẻ <b>${uid}</b> đi qua: <span class="dem">${k.giay} giây</span>
+      ${k.da_xac_nhan ? '(nhân viên đã xác nhận chờ tiếp)' : `(hỏi nhân viên sau ${k.gioi_han} giây)`}</span>${nutKhong}`;
+    if (k.hoi) canhBaoCho.push(`
+      <div class="alert">
+        <b>⚠ ${c === 'vao' ? 'Cổng vào' : 'Cổng ra'}: thẻ ${uid} quẹt được ${k.giay} giây nhưng xe chưa ${h.viec}</b>
+        <div class="imgs"><div>Biển: ${bien(k.bien)}${c === 'ra' ? ` · thu ${vnd(k.so_tien)}` : ''}<br>
+          ${k.anh ? `<img src="/anh/${encodeURIComponent(k.anh)}" ${KHI_LOI_ANH}>` : ''}</div></div>
+        <div class="row"><button class="primary" onclick="choTiep('${c}')">${h.co}</button>${nutKhong}</div>
+      </div>`);
+  }
+
+  document.getElementById('alerts').innerHTML = canhBaoCho.join('') + d.cho_kiem_tra.map(p => `
     <div class="alert">
       <b>⚠ Biển số không khớp – thẻ ${esc(p.uid)}</b>
       <div class="imgs">
@@ -212,14 +321,18 @@ function ve(d) {
         <div>Lúc ra: ${bien(p.bien_ra)}<br>${p.anh_ra ? `<img src="/anh/${encodeURIComponent(p.anh_ra)}">` : ''}</div>
       </div>
       <div class="row"><button class="primary" onclick="choRa(${p.id})">Đúng xe – cho ra</button>
-      <button class="danger" onclick="huyRa(${p.id})">Không cho ra</button></div>
+      <button class="danger" onclick="huyRa(${p.id})">Không cho ra</button>
+      <button onclick="xoaLuot(${p.id}, '${esc(p.uid)}')">Xoá lượt (test)</button></div>
     </div>`).join('');
 
   document.getElementById('trong-bai').innerHTML = d.trong_bai.length ? d.trong_bai.map(p => `
     <tr><td>${anh(p.anh_vao)}</td><td>${esc(p.uid)}</td><td>${bien(p.bien_vao)}</td>
-    <td>${p.loai === 'thang' ? '<span class="tag">Thẻ tháng</span>' : 'Lượt'}</td>
+    <td>${p.loai === 'thang' ? '<span class="tag">Thẻ tháng</span>' : 'Lượt'}
+      ${p.trang_thai === 'dang_vao' ? '<span class="pill warn">Đang vào cổng</span>' : ''}
+      ${p.trang_thai === 'dang_ra' ? '<span class="pill warn">Đang ra</span>' : ''}</td>
     <td>${gio(p.gio_vao)}</td><td>${p.phut} phút</td><td>${vnd(p.tam_tinh)}</td>
-    <td><button onclick="suaBien(${p.id}, '${esc(p.bien_vao)}')">Sửa biển</button></td></tr>`).join('')
+    <td><div class="row"><button onclick="suaBien(${p.id}, '${esc(p.bien_vao)}')">Sửa biển</button>
+    <button class="danger" onclick="xoaLuot(${p.id}, '${esc(p.uid)}')">Xoá</button></div></td></tr>`).join('')
     : '<tr><td colspan="8" class="empty">Chưa có xe trong bãi</td></tr>';
 
   document.getElementById('lich-su').innerHTML = d.lich_su.length ? d.lich_su.map(p => `
@@ -230,15 +343,26 @@ function ve(d) {
 
   document.getElementById('the-thang').innerHTML = d.the_thang.length ? d.the_thang.map(t => `
     <tr><td>${esc(t.uid)}</td><td>${esc(t.ten)}</td><td>${bien(t.bien_so)}</td>
-    <td><button class="danger" onclick="xoaThe('${esc(t.uid)}')">Xoá</button></td></tr>`).join('')
+    <td><button class="danger" data-uid="${esc(t.uid)}" onclick="xoaThe(this)">Xoá</button></td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Chưa có thẻ tháng</td></tr>';
+
+  const v = d.vua_vao;
+  document.getElementById('btn-xoa-vua-vao').disabled = !v;
+  if (v) document.getElementById('vua-vao').innerHTML = `${anhTo(v.anh_vao)}
+    <div>Thẻ <b>${esc(v.uid)}</b> · ${bien(v.bien_vao)} · <span class="muted">${gio(v.gio_vao)}</span></div>`;
+  else if (!document.getElementById('vua-vao').textContent.startsWith('Đã xoá'))
+    document.getElementById('vua-vao').textContent = 'Chưa có xe trong bãi';
 
   document.getElementById('log').innerHTML = d.nhat_ky.map(n =>
     `<div class="${n.muc}"><span class="muted">${n.thoi_gian.slice(11)}</span> ${esc(n.noi_dung)}</div>`).join('');
 }
 
 async function tai() {
-  try { ve(await (await fetch('/api/state')).json()); }
+  try {
+    const r = await fetch('/api/state');
+    if (r.status === 401) { location.href = '/dang_nhap'; return; }   // hết phiên đăng nhập
+    ve(await r.json());
+  }
   catch (e) { document.getElementById('mqtt').textContent = 'Mất kết nối tới Pi'; }
 }
 setInterval(tai, 2000);

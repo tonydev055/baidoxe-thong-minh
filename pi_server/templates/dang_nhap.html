@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đăng nhập – Bãi đỗ xe</title>
+<style>
+  :root { --bg: #f4f6f9; --card: #ffffff; --text: #1d2433; --muted: #6b7489; --line: #e2e6ee;
+          --blue: #2563c9; --red: #d64545; --red-bg: #fde8e8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #12161f; --card: #1b2130; --text: #e6e9f0; --muted: #98a1b5; --line: #2a3245; --red-bg: #3d1d1f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  form { width: 100%; max-width: 340px; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+         padding: 24px; display: grid; gap: 14px; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; }
+  label { display: grid; gap: 6px; font-size: 14px; color: var(--muted); }
+  input { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+  button { font: inherit; padding: 10px; border: 0; border-radius: 8px; background: var(--blue); color: #fff; cursor: pointer; }
+  .loi { background: var(--red-bg); color: var(--red); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+</style>
+</head>
+<body>
+<form method="post" action="/dang_nhap">
+  <h1>Bãi đỗ xe thông minh</h1>
+  {% if loi %}<div class="loi">{{ loi }}</div>{% endif %}
+  <label>Tài khoản <input name="tai_khoan" autocomplete="username" required autofocus></label>
+  <label>Mật khẩu <input name="mat_khau" type="password" autocomplete="current-password" required></label>
+  <input type="hidden" name="tiep" value="{{ tiep }}">
+  <button type="submit">Đăng nhập</button>
+</form>
+</body>
+</html>

@@ -8,8 +8,9 @@
  *
  *  Luồng mỗi cổng:
  *   ĐÓNG --quẹt thẻ--> (chờ Pi duyệt biển số) --> MỞ
- *   MỞ --cảm biến thấy xe--> ĐANG QUA --hết xe 1 giây--> ĐÓNG
- *   MỞ quá 15 giây mà không có xe qua --> tự ĐÓNG
+ *   MỞ --cảm biến thấy xe--> ĐANG QUA --hết xe 1 giây--> ĐÓNG + báo Pi (baidoxe/qua/<cổng>)
+ *   MỞ mà xe chưa qua: KHÔNG tự đóng. Pi hỏi nhân viên trên web, xe không đi nữa
+ *   thì Pi gửi lệnh "dong" để hạ thanh chắn
  *
  *  MÔ PHỎNG TRÊN WOKWI:
  *   - Bấm vào đầu đọc RFID để chọn và quẹt thẻ.
@@ -43,7 +44,6 @@ const float NGUONG_CM = 8.0;                 // nhỏ hơn => có xe trước c�
 const int GOC_DONG = 0;
 const int GOC_MO   = 90;
 const unsigned long CHO_DUYET_MS = 10000;    // chờ Pi trả lời tối đa
-const unsigned long MO_TOI_DA_MS = 15000;    // mở mà không có xe qua => tự đóng
 const unsigned long CHO_DONG_MS  = 1000;     // xe qua hẳn rồi chờ bao lâu mới đóng
 
 enum TrangThai { DONG, CHO_DUYET, MO, DANG_QUA };
@@ -109,13 +109,30 @@ bool docThe(MFRC522* r, String& uid) {
   return true;
 }
 
-void guiMQTT(const char* loai, const char* ten, const char* noiDung, bool retain) {
+// Trả về true nếu đã gửi được (false: chưa kết nối MQTT hoặc gửi lỗi)
+bool guiMQTT(const char* loai, const char* ten, const char* noiDung, bool retain) {
 #if DUNG_MQTT
-  if (!mqtt.connected()) return;
+  if (!mqtt.connected()) return false;
   char topic[32];
   snprintf(topic, sizeof(topic), "baidoxe/%s/%s", loai, ten);
-  mqtt.publish(topic, noiDung, retain);
+  return mqtt.publish(topic, noiDung, retain);
+#else
+  return false;
 #endif
+}
+
+// Xe đã đi qua cổng: báo Pi để kết thúc lượt. Đang mất MQTT thì nhớ lại, kết nối lại sẽ gửi.
+bool chuaBaoQua[2] = {false, false};
+
+void guiXeQuaConNo() {
+  for (int i = 0; i < 2; i++) {
+    if (chuaBaoQua[i] && guiMQTT("qua", cong[i].ten, "1", false)) chuaBaoQua[i] = false;
+  }
+}
+
+void baoXeQua(Cong& c) {
+  chuaBaoQua[&c - cong] = true;
+  guiXeQuaConNo();
 }
 
 // ------------------ ĐIỀU KHIỂN CỔNG ------------------
@@ -147,8 +164,13 @@ void xuLyCong(Cong& c) {
         Serial.printf("[%s] Quet the %s\n", c.ten, uid.c_str());
         bip(c.coi, 100);
 #if DUNG_MQTT
-        guiMQTT("the", c.ten, uid.c_str(), false);   // Pi chụp ảnh, đọc biển, trả lời
-        datTrangThai(c, CHO_DUYET);
+        if (guiMQTT("the", c.ten, uid.c_str(), false)) {   // Pi chụp ảnh, đọc biển, trả lời
+          datTrangThai(c, CHO_DUYET);
+        } else {
+          // Chưa nối được máy chủ: báo ngay thay vì bắt xe chờ hết CHO_DUYET_MS
+          Serial.printf("[%s] Chua ket noi MQTT, khong gui duoc the\n", c.ten);
+          bip(c.coi, 600);
+        }
 #else
         moCong(c);                                    // mô phỏng: tự cho qua
 #endif
@@ -164,12 +186,10 @@ void xuLyCong(Cong& c) {
       break;
 
     case MO:
+      // Không tự đóng: chờ xe đi qua cảm biến, hoặc lệnh "dong" từ Pi
       if (coXe(c)) {
         Serial.printf("[%s] Xe dang di qua\n", c.ten);
         datTrangThai(c, DANG_QUA);
-      } else if (millis() - c.moc > MO_TOI_DA_MS) {
-        Serial.printf("[%s] Khong co xe qua, tu dong\n", c.ten);
-        dongCong(c);
       }
       break;
 
@@ -181,6 +201,7 @@ void xuLyCong(Cong& c) {
       } else if (millis() - c.hetXeLuc > CHO_DONG_MS) {
         Serial.printf("[%s] Xe da qua han\n", c.ten);
         dongCong(c);
+        baoXeQua(c);
       }
       break;
   }
@@ -197,6 +218,13 @@ void nhanLenh(char* topic, byte* payload, unsigned int len) {
     if (lenh == "mo") {
       // Mở khi đang chờ Pi duyệt, hoặc khi người trông xe bấm mở từ trang web
       if (c.tt == CHO_DUYET || c.tt == DONG) moCong(c);
+    } else if (lenh == "dong") {
+      // Nhân viên xác nhận xe không đi qua nữa (hoặc đóng tay từ web).
+      // Chỉ hạ khi chưa có xe dưới cảm biến (trạng thái MỞ), tránh hạ trúng xe.
+      if (c.tt == MO) {
+        Serial.printf("[%s] Pi yeu cau dong cong\n", c.ten);
+        dongCong(c);
+      }
     } else if (lenh == "tuchoi" && c.tt == CHO_DUYET) {
       Serial.printf("[%s] Pi tu choi (bien so khong khop)\n", c.ten);
       bip(c.coi, 600);
@@ -217,6 +245,9 @@ void giuKetNoi() {
   if (ok) {
     Serial.println("MQTT: da ket noi");
     mqtt.subscribe("baidoxe/lenh/+");
+    for (auto& c : cong)   // báo lại trạng thái cổng hiện tại cho trang web
+      guiMQTT("cong", c.ten, (c.tt == MO || c.tt == DANG_QUA) ? "mo" : "dong", true);
+    guiXeQuaConNo();
   } else {
     Serial.printf("MQTT: loi ket noi (%d), thu lai sau 3s\n", mqtt.state());
   }
