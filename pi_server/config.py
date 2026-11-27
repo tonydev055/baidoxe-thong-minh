@@ -1,13 +1,18 @@
 """
 Cấu hình hệ thống bãi đỗ xe - chạy trên Raspberry Pi 5.
-Sửa các giá trị dưới đây cho đúng với mạng / camera của bạn.
+
+KHÔNG sửa file này trên Pi (git pull sẽ báo lỗi). Muốn đổi giá trị nào thì
+tạo file cau_hinh_rieng.py (chép từ cau_hinh_rieng.vi_du.py) và ghi đè ở đó:
+đường dẫn webcam, mật khẩu web, mật khẩu MQTT... File đó không đưa lên GitHub.
 """
 import os
 
 # ---------------- MQTT (Mosquitto chạy trên chính Pi) ----------------
 MQTT_HOST = os.environ.get("BAIDOXE_MQTT_HOST", "localhost")
 MQTT_PORT = 1883
-MQTT_USER = ""          # để trống nếu broker cho phép ẩn danh (allow_anonymous true)
+# Tài khoản MQTT. Để trống nếu broker cho phép ẩn danh (allow_anonymous true).
+# Bật mật khẩu cho Mosquitto: chạy  sudo bash bat_mat_khau_mqtt.sh  (xem HUONG_DAN_PI.md)
+MQTT_USER = ""
 MQTT_PASS = ""
 
 # ---------------- Bãi đỗ ----------------
@@ -58,11 +63,28 @@ CHO_XAC_NHAN_VAO_GIAY = 30
 CHO_XAC_NHAN_RA_GIAY = 15
 
 # Biển số lúc ra được coi là khớp nếu giống lúc vào từ mức này trở lên (0..1).
-NGUONG_GIONG_BIEN = 0.8
+# 1.0 = phải GIỐNG HỆT. Khác dù chỉ 1 ký tự (29A12345 / 29A12346) cũng không tự mở,
+# mà chuyển người trông xe xem 2 ảnh rồi bấm "Cho ra" / "Không cho ra".
+# (Hạ xuống 0.9 nếu OCR hay đọc sai 1 ký tự và chấp nhận rủi ro cho nhầm xe.)
+NGUONG_GIONG_BIEN = 1.0
 
 # ---------------- Web & lưu trữ ----------------
 WEB_PORT = 5000
+# Tài khoản đăng nhập trang web quản lý. ĐỔI mật khẩu trong cau_hinh_rieng.py.
+# Còn để mật khẩu mặc định thì trang web và Nhật ký sẽ nhắc.
+WEB_TAI_KHOAN = "admin"
+WEB_MAT_KHAU = os.environ.get("BAIDOXE_WEB_MAT_KHAU", "baidoxe123")
+WEB_MAT_KHAU_MAC_DINH = "baidoxe123"
+WEB_GIU_DANG_NHAP_GIO = 12          # đăng nhập 1 lần dùng được bấy nhiêu giờ
+
 THU_MUC_GOC = os.path.dirname(os.path.abspath(__file__))
 THU_MUC_ANH = os.path.join(THU_MUC_GOC, "anh")
 GIU_ANH_NGAY = 30       # tự xoá ảnh cũ hơn bấy nhiêu ngày (0 = không bao giờ xoá)
 DB_FILE = os.path.join(THU_MUC_GOC, "baidoxe.db")
+KHOA_BI_MAT_FILE = os.path.join(THU_MUC_GOC, "khoa_bi_mat.txt")   # khoá ký phiên đăng nhập (tự tạo)
+
+# ---------------- Ghi đè bằng cấu hình riêng (không đưa lên GitHub) ----------------
+try:
+    from cau_hinh_rieng import *  # noqa: F401,F403
+except ImportError:
+    pass

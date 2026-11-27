@@ -80,6 +80,10 @@ BAO_CAO_CU_GIAY = 120         # ESP32 gửi 30 giây/lần; quá mức này coi 
 _khoa = threading.Lock()
 _esp = {k: {"online": None, "bc": None, "luc": 0.0} for k in TEN_ESP}
 
+# app.py gán hàm này: ESP32 vừa khởi động lại thì gọi khi_khoi_dong("cong" | "o_do")
+# (ESP32 cổng khởi động lại sẽ hạ cả 2 thanh chắn -> app mở lại cổng đang có xe chờ)
+khi_khoi_dong = None
+
 
 def _ghi(noi_dung, muc="info"):
     try:
@@ -120,6 +124,11 @@ def nhan(ten, phan_cuoi, noi_dung):
         ly_do = bc.get("reset", "khac")
         _ghi(f"{ten_hien} vừa khởi động – lý do: {LY_DO_KHOI_DONG.get(ly_do, ly_do)}",
              "canh_bao" if ly_do in LY_DO_XAU else "info")
+        if khi_khoi_dong is not None:
+            try:
+                khi_khoi_dong(ten)
+            except Exception:
+                traceback.print_exc()
 
     for khoa, ten_muc, cach_sua in MUC[ten]:
         if khoa not in bc:

@@ -7,3 +7,9 @@ venv/
 # Du lieu chay tren Pi (khong dua len GitHub)
 pi_server/baidoxe.db
 pi_server/anh/
+
+# Cau hinh / bi mat rieng tung may (khong dua len GitHub)
+pi_server/cau_hinh_rieng.py
+pi_server/khoa_bi_mat.txt
+pi_server/app.log
+esp32_that/*/bi_mat.h

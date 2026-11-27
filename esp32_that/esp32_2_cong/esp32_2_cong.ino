@@ -36,13 +36,32 @@
 // ------------------ CẤU HÌNH ------------------
 #define DUNG_MQTT    1   // 1: quẹt thẻ -> máy chủ đọc biển số rồi gửi lệnh mở / từ chối
 
-// ESP32 chỉ bắt được WiFi 2.4 GHz (không bắt được mạng 5G)
-const char* WIFI_SSID = "TonyDev";   // <-- sửa: tên WiFi
-const char* WIFI_PASS = "12345678";     // <-- sửa: mật khẩu WiFi
-const char* MQTT_HOST = "172.20.10.2";       // IP laptop đang chạy Mosquitto (dùng Pi thì đổi IP Pi)
+// Thông tin WiFi / MQTT: giá trị mặc định ở dưới. Muốn đổi mà KHÔNG bị git pull ghi đè:
+// tạo file bi_mat.h cạnh file .ino này (chép từ bi_mat.vi_du.h). File đó không đưa lên GitHub.
+#if __has_include("bi_mat.h")
+#include "bi_mat.h"
+#endif
+#ifndef BI_MAT_WIFI_SSID
+#define BI_MAT_WIFI_SSID "TonyDev"        // ESP32 chỉ bắt được WiFi 2.4 GHz (không bắt được mạng 5G)
+#endif
+#ifndef BI_MAT_WIFI_PASS
+#define BI_MAT_WIFI_PASS "12345678"
+#endif
+#ifndef BI_MAT_MQTT_HOST
+#define BI_MAT_MQTT_HOST "172.20.10.2"    // IP của Pi (máy chạy Mosquitto) trong mạng WiFi
+#endif
+#ifndef BI_MAT_MQTT_USER
+#define BI_MAT_MQTT_USER ""               // để trống nếu Mosquitto cho phép ẩn danh
+#endif
+#ifndef BI_MAT_MQTT_PASS
+#define BI_MAT_MQTT_PASS ""
+#endif
+const char* WIFI_SSID = BI_MAT_WIFI_SSID;
+const char* WIFI_PASS = BI_MAT_WIFI_PASS;
+const char* MQTT_HOST = BI_MAT_MQTT_HOST;
 const uint16_t MQTT_PORT = 1883;
-const char* MQTT_USER = "";
-const char* MQTT_PASS = "";
+const char* MQTT_USER = BI_MAT_MQTT_USER;
+const char* MQTT_PASS = BI_MAT_MQTT_PASS;
 
 // ------------------ CHÂN ------------------
 // RC522 dùng chung SPI: SCK 18, MISO 19, MOSI 23, RST 22. SDA riêng: vào 5, ra 4
@@ -54,9 +73,15 @@ const int GOC_DONG = 0;
 const int GOC_MO   = 90;
 const unsigned long CHO_DUYET_MS = 25000;    // chờ Pi chụp ảnh + đọc biển số tối đa
 const unsigned long CHO_DONG_MS  = 1000;     // xe qua hẳn rồi chờ bao lâu mới đóng
+const unsigned long CHO_DONG_MAT_VONG_MS = 3000; // như trên nhưng cảm biến mất tiếng dội (có thể
+                                                 // do thân xe làm lệch sóng) -> chờ lâu hơn cho chắc
 const unsigned long KIEM_TRA_MS  = 5000;     // bao lâu tự kiểm tra thiết bị 1 lần
 const unsigned long BAO_CAO_MS   = 30000;    // không có gì đổi vẫn gửi báo cáo định kỳ
 const uint8_t SO_LAN_LOI_SA = 3;             // siêu âm không phản hồi liên tiếp bấy nhiêu lần => lỗi
+// Chống nhiễu cảm biến (cổng này hoạt động không làm cổng kia tưởng có xe qua):
+const unsigned long KHOANG_CACH_DO_MS   = 60;  // 2 lần phát siêu âm (bất kỳ cảm biến nào) cách nhau tối thiểu
+const unsigned long BO_QUA_SAU_SERVO_MS = 600; // servo vừa quay: bỏ qua số đo trong khoảng này (nhiễu điện, rung)
+const uint8_t SO_LAN_THAY_XE = 3;            // phải thấy xe liên tiếp bấy nhiêu lần mới tính là xe đang qua
 
 enum TrangThai { DONG, CHO_DUYET, MO, DANG_QUA };
 
@@ -75,24 +100,24 @@ struct Cong {
   bool rc522Ok;            // kết quả tự kiểm tra
   byte rc522Ver;
   uint8_t saLoiLienTiep;   // số lần siêu âm không phản hồi liên tiếp
+  uint8_t demThay;         // số lần liên tiếp thấy xe (chống nhiễu)
+  bool hetXeChac;          // lúc hết thấy xe: có đo được khoảng cách thật (không phải mất tiếng dội)
 };
 
 Cong cong[2] = {
-  {"vao", &theVao, &servoVao, 25, 34, 32, 27, DONG, 0, 0, false, 0, 0},
-  {"ra",  &theRa,  &servoRa,  26, 35, 33, 17, DONG, 0, 0, false, 0, 0},
+  {"vao", &theVao, &servoVao, 25, 34, 32, 27, DONG, 0, 0, false, 0, 0, 0, false},
+  {"ra",  &theRa,  &servoRa,  26, 35, 33, 17, DONG, 0, 0, false, 0, 0, 0, false},
 };
 
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
 
 // ------------------ TIỆN ÍCH ------------------
-// Bíp 2 kHz tạo bằng tay (giống code test đã kêu được): hợp cả còi chủ động lẫn thụ động
+// Module còi chủ động 3 chân: cấp điện liên tục trong lúc kêu là to nhất
 void bip(uint8_t pin, unsigned int ms) {
-  unsigned long batDau = millis();
-  while (millis() - batDau < ms) {
-    digitalWrite(pin, HIGH); delayMicroseconds(250);
-    digitalWrite(pin, LOW);  delayMicroseconds(250);
-  }
+  digitalWrite(pin, HIGH);
+  delay(ms);
+  digitalWrite(pin, LOW);
 }
 
 // Đo khoảng cách (cm).
@@ -119,9 +144,16 @@ float doKhoangCach(uint8_t trig, uint8_t echo) {
   return (micros() - t1) / 58.0;
 }
 
-// Đo + ghi nhận lỗi cảm biến. Cảm biến lỗi thì coi như không có xe.
+unsigned long lanPhatCuoi = 0;   // lần phát siêu âm gần nhất (của bất kỳ cảm biến nào)
+unsigned long servoLuc = 0;      // lần servo (bất kỳ cổng nào) quay gần nhất
+
+// Đo + ghi nhận lỗi cảm biến. Chờ đủ KHOANG_CACH_DO_MS sau lần phát trước để không bắt nhầm
+// tiếng dội của cảm biến cổng kia.
 float doCong(Cong& c) {
+  unsigned long daQua = millis() - lanPhatCuoi;
+  if (daQua < KHOANG_CACH_DO_MS) delay(KHOANG_CACH_DO_MS - daQua);
   float d = doKhoangCach(c.trig, c.echo);
+  lanPhatCuoi = millis();
   if (d < 0) {
     if (c.saLoiLienTiep < 255) c.saLoiLienTiep++;
   } else {
@@ -130,9 +162,15 @@ float doCong(Cong& c) {
   return d;
 }
 
-bool coXe(Cong& c) {
+// 1 = thấy xe, 0 = không có xe (đo được khoảng cách thật),
+// 2 = mất tiếng dội (thường là không có xe, nhưng cũng có thể sóng bị thân xe làm lệch),
+// -1 = không kết luận được (servo vừa quay / cảm biến không phản hồi)
+int8_t thayXe(Cong& c) {
+  if (millis() - servoLuc < BO_QUA_SAU_SERVO_MS) return -1;
   float d = doCong(c);
-  return d >= 0 && d < NGUONG_CM;
+  if (d < 0) return -1;
+  if (d >= 999) return 2;
+  return d < NGUONG_CM ? 1 : 0;
 }
 
 bool saOk(Cong& c) {
@@ -210,10 +248,12 @@ void datTrangThai(Cong& c, TrangThai tt) {
   c.tt = tt;
   c.moc = millis();
   c.hetXeLuc = 0;
+  c.demThay = 0;
 }
 
 void moCong(Cong& c) {
   c.servo->write(GOC_MO);
+  servoLuc = millis();
   datTrangThai(c, MO);
   Serial.printf("[%s] MO thanh chan\n", c.ten);
   guiMQTT("cong", c.ten, "mo", true);
@@ -221,6 +261,7 @@ void moCong(Cong& c) {
 
 void dongCong(Cong& c) {
   c.servo->write(GOC_DONG);
+  servoLuc = millis();
   datTrangThai(c, DONG);
   Serial.printf("[%s] DONG thanh chan\n", c.ten);
   guiMQTT("cong", c.ten, "dong", true);
@@ -255,25 +296,42 @@ void xuLyCong(Cong& c) {
       }
       break;
 
-    case MO:
-      // Không tự đóng: chờ xe đi qua cảm biến, hoặc lệnh "dong" từ Pi
-      if (coXe(c)) {
-        Serial.printf("[%s] Xe dang di qua\n", c.ten);
-        datTrangThai(c, DANG_QUA);
+    case MO: {
+      // Không tự đóng: chờ xe đi qua cảm biến, hoặc lệnh "dong" từ Pi.
+      // Phải thấy xe SO_LAN_THAY_XE lần liên tiếp mới tính (1 lần đo nhiễu không làm cổng đóng).
+      int8_t x = thayXe(c);
+      if (x == 1) {
+        if (++c.demThay >= SO_LAN_THAY_XE) {
+          Serial.printf("[%s] Xe dang di qua\n", c.ten);
+          datTrangThai(c, DANG_QUA);
+        }
+      } else if (x == 0 || x == 2) {
+        c.demThay = 0;
       }
       break;
+    }
 
-    case DANG_QUA:
-      if (coXe(c)) {
+    case DANG_QUA: {
+      int8_t x = thayXe(c);
+      if (x == 1) {
         c.hetXeLuc = 0;                       // xe vẫn còn dưới cảm biến: giữ mở
-      } else if (c.hetXeLuc == 0) {
-        c.hetXeLuc = millis();                // vừa hết thấy xe: bắt đầu đếm
-      } else if (millis() - c.hetXeLuc > CHO_DONG_MS) {
-        Serial.printf("[%s] Xe da qua han\n", c.ten);
-        dongCong(c);
-        baoXeQua(c);
+      } else if (x == 0 || x == 2) {
+        if (c.hetXeLuc == 0) {
+          c.hetXeLuc = millis();              // vừa hết thấy xe: bắt đầu đếm
+          c.hetXeChac = (x == 0);
+        } else {
+          if (x == 2) c.hetXeChac = false;    // có lúc mất tiếng dội: chờ lâu hơn mới hạ thanh chắn
+          unsigned long canCho = c.hetXeChac ? CHO_DONG_MS : CHO_DONG_MAT_VONG_MS;
+          if (millis() - c.hetXeLuc > canCho) {
+            Serial.printf("[%s] Xe da qua han\n", c.ten);
+            dongCong(c);
+            baoXeQua(c);
+          }
+        }
       }
+      // x == -1: lần đo này không tin được, bỏ qua
       break;
+    }
   }
 }
 
@@ -372,7 +430,7 @@ void giuKetNoi() {
     Serial.println("MQTT: da ket noi");
     mqtt.publish("baidoxe/tb/cong/online", "1", true);
     guiBaoCao();
-    mqtt.subscribe("baidoxe/lenh/+");
+    mqtt.subscribe("baidoxe/lenh/+", 1);   // QoS 1: lệnh mở / đóng không bị mất khi mạng chập chờn
     for (auto& c : cong)   // báo lại trạng thái cổng hiện tại cho trang web
       guiMQTT("cong", c.ten, (c.tt == MO || c.tt == DANG_QUA) ? "mo" : "dong", true);
     guiXeQuaConNo();

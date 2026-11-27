@@ -27,13 +27,32 @@
 // ------------------ CẤU HÌNH ------------------
 #define DUNG_MQTT 1          // 1: gửi trạng thái lên máy chủ (laptop hoặc Pi)
 
-// ESP32 chỉ bắt được WiFi 2.4 GHz (không bắt được mạng 5G)
-const char* WIFI_SSID = "TonyDev";           // <-- sửa: tên WiFi
-const char* WIFI_PASS = "12345678";     // <-- sửa: mật khẩu WiFi
-const char* MQTT_HOST = "172.20.10.2";     // IP laptop đang chạy Mosquitto (dùng Pi thì đổi IP Pi)
+// Thông tin WiFi / MQTT: giá trị mặc định ở dưới. Muốn đổi mà KHÔNG bị git pull ghi đè:
+// tạo file bi_mat.h cạnh file .ino này (chép từ bi_mat.vi_du.h). File đó không đưa lên GitHub.
+#if __has_include("bi_mat.h")
+#include "bi_mat.h"
+#endif
+#ifndef BI_MAT_WIFI_SSID
+#define BI_MAT_WIFI_SSID "TonyDev"        // ESP32 chỉ bắt được WiFi 2.4 GHz (không bắt được mạng 5G)
+#endif
+#ifndef BI_MAT_WIFI_PASS
+#define BI_MAT_WIFI_PASS "12345678"
+#endif
+#ifndef BI_MAT_MQTT_HOST
+#define BI_MAT_MQTT_HOST "172.20.10.2"    // IP của Pi (máy chạy Mosquitto) trong mạng WiFi
+#endif
+#ifndef BI_MAT_MQTT_USER
+#define BI_MAT_MQTT_USER ""               // để trống nếu Mosquitto cho phép ẩn danh
+#endif
+#ifndef BI_MAT_MQTT_PASS
+#define BI_MAT_MQTT_PASS ""
+#endif
+const char* WIFI_SSID = BI_MAT_WIFI_SSID;
+const char* WIFI_PASS = BI_MAT_WIFI_PASS;
+const char* MQTT_HOST = BI_MAT_MQTT_HOST;
 const uint16_t MQTT_PORT = 1883;
-const char* MQTT_USER = "";              // để trống nếu broker cho phép ẩn danh
-const char* MQTT_PASS = "";
+const char* MQTT_USER = BI_MAT_MQTT_USER;
+const char* MQTT_PASS = BI_MAT_MQTT_PASS;
 
 // ------------------ CHÂN ------------------
 const uint8_t SO_O = 4;
@@ -46,6 +65,8 @@ const uint8_t LED_DO[SO_O]   = {18, 17, 4, 15};    // ô1..ô4 (17 = TX2)
 // ------------------ THÔNG SỐ ------------------
 const float   NGUONG_CM = 6.0;        // nhỏ hơn => ô có xe
 const uint8_t SO_LAN_XAC_NHAN = 3;    // chống nhiễu
+const uint8_t SO_LAN_XAC_NHAN_MAT_VONG = 15;  // đang có xe mà mất tiếng dội (999): phải liên tục
+                                              // bấy nhiêu lần (~4 giây) mới tính là ô trống
 const uint8_t SO_LAN_LOI_SA = 5;      // không phản hồi liên tiếp bấy nhiêu lần => cảm biến lỗi
 const uint8_t DIA_CHI_OLED = 0x3C;
 const unsigned long KIEM_TRA_MS = 5000;   // bao lâu kiểm tra OLED 1 lần
@@ -337,8 +358,11 @@ void loop() {
     } else {
       saLoi[i] = 0;
       bool doc = d < NGUONG_CM;
+      // Mất tiếng dội (999) khi ô đang có xe: có thể do thân xe làm lệch sóng chứ chưa chắc xe đã đi
+      // -> phải mất liên tục lâu hơn mới tính là trống (đo được khoảng cách thật thì 3 lần là đủ)
+      uint8_t canDem = (d >= 999 && coXe[i]) ? SO_LAN_XAC_NHAN_MAT_VONG : SO_LAN_XAC_NHAN;
       if (doc != coXe[i]) {
-        if (++dem[i] >= SO_LAN_XAC_NHAN) {   // đọc giống nhau 3 lần mới đổi
+        if (++dem[i] >= canDem) {            // đọc giống nhau đủ số lần mới đổi
           coXe[i] = doc;
           dem[i] = 0;
           thayDoi = true;

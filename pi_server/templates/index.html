@@ -86,6 +86,7 @@
     <a href="#thiet-bi" id="tb-tom-tat" class="pill gray" style="text-decoration:none">Thiết bị: –</a>
     <span id="mqtt" class="pill bad">MQTT: mất kết nối</span>
     <span id="clock" class="muted"></span>
+    <a href="/dang_xuat" class="muted" style="font-size:13px">Đăng xuất{% if nguoi_dung %} ({{ nguoi_dung }}){% endif %}</a>
   </div>
 </header>
 
@@ -97,6 +98,7 @@
     <div class="stat"><div class="label">Doanh thu hôm nay</div><div class="value" id="s-tien">–</div></div>
   </section>
 
+  <div id="bao-mat"></div>
   <div id="alerts"></div>
 
   <section class="card" id="thiet-bi">
@@ -209,6 +211,7 @@ async function post(url, body, method = 'POST') {
   try {
     const r = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : null });
     d = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.href = '/dang_nhap'; return d; }
     if (!r.ok) alert(d.loi || ('Lỗi ' + r.status));
   } catch (e) {
     alert('Không gửi được lệnh tới Pi');
@@ -252,6 +255,9 @@ function themThe() {
 }
 
 function ve(d) {
+  document.getElementById('bao-mat').innerHTML = d.canh_bao_bao_mat.map(t =>
+    `<div class="alert" style="margin-bottom:8px">🔒 ${esc(t)}</div>`).join('');
+
   const mq = document.getElementById('mqtt');
   mq.textContent = d.mqtt ? 'MQTT: đã kết nối' : 'MQTT: mất kết nối';
   mq.className = 'pill ' + (d.mqtt ? 'ok' : 'bad');
@@ -352,7 +358,11 @@ function ve(d) {
 }
 
 async function tai() {
-  try { ve(await (await fetch('/api/state')).json()); }
+  try {
+    const r = await fetch('/api/state');
+    if (r.status === 401) { location.href = '/dang_nhap'; return; }   // hết phiên đăng nhập
+    ve(await r.json());
+  }
   catch (e) { document.getElementById('mqtt').textContent = 'Mất kết nối tới Pi'; }
 }
 setInterval(tai, 2000);

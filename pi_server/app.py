@@ -9,16 +9,20 @@ CHƯƠNG TRÌNH CHÍNH - BÃI ĐỖ XE THÔNG MINH (chạy trên Raspberry Pi 5)
 
 Chạy:  python app.py
 """
+import hmac
 import math
+import os
+import secrets
 import sys
 import threading
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from difflib import SequenceMatcher
 
 import paho.mqtt.client as mqtt
-from flask import Flask, Response, abort, jsonify, render_template, request, send_from_directory
+from flask import (Flask, Response, abort, jsonify, redirect, render_template, request,
+                   send_from_directory, session, url_for)
 
 import camera
 import config
@@ -34,6 +38,33 @@ for _luong_in in (sys.stdout, sys.stderr):
         pass
 
 app = Flask(__name__)
+
+
+def _lay_khoa_bi_mat():
+    """Khoá ký cookie đăng nhập: tạo ngẫu nhiên 1 lần, lưu file để khởi động lại không bị đăng xuất."""
+    try:
+        with open(config.KHOA_BI_MAT_FILE) as f:
+            khoa = f.read().strip()
+            if khoa:
+                return khoa
+    except OSError:
+        pass
+    khoa = secrets.token_hex(32)
+    try:
+        with open(config.KHOA_BI_MAT_FILE, "w") as f:
+            f.write(khoa)
+        os.chmod(config.KHOA_BI_MAT_FILE, 0o600)
+    except OSError:
+        pass
+    return khoa
+
+
+app.secret_key = _lay_khoa_bi_mat()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,        # JavaScript lạ không đọc được cookie đăng nhập
+    SESSION_COOKIE_SAMESITE="Lax",       # trang web khác không gửi lệnh (POST) thay mình được
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=config.WEB_GIU_DANG_NHAP_GIO),
+)
 
 trang_thai = {
     "o": {i: False for i in range(1, config.SO_O + 1)},   # True = có xe
@@ -87,8 +118,9 @@ def tien_vn(so):
 
 
 def gui_lenh(cong, lenh):
+    # QoS 1: broker xác nhận đã nhận và chuyển lệnh tới ESP32 (mạng chập chờn không mất lệnh mở / đóng)
     if client is not None:
-        client.publish(f"baidoxe/lenh/{cong}", lenh)
+        client.publish(f"baidoxe/lenh/{cong}", lenh, qos=1)
 
 
 def so_cho_trong():
@@ -236,6 +268,23 @@ def khoi_phuc_cho_qua():
                 cho_qua[cong] = {"phien_id": p["id"], "luc": time.time(), "hoi": False, "da_xac_nhan": False}
 
 
+def esp32_khoi_dong_lai(ten):
+    """ESP32 cổng vừa khởi động lại (sụt nguồn, bấm EN...) -> 2 thanh chắn đã hạ.
+    Cổng nào đang có xe chờ đi qua thì mở lại cho xe đó."""
+    if ten != "cong":
+        return
+    for cong in ("vao", "ra"):
+        with khoa_cho_qua:
+            p = cho_qua[cong]
+            if p is not None:
+                p["luc"] = time.time()          # đếm lại thời gian chờ từ lúc mở lại
+                p["hoi"] = False
+        if p is not None:
+            gui_lenh(cong, "mo")
+            db.ghi_nhat_ky(f"{TEN_CONG[cong]}: ESP32 khởi động lại khi đang chờ xe – mở lại thanh chắn",
+                           "canh_bao")
+
+
 def chay_nen(ham, *args):
     threading.Thread(target=ham, args=args, daemon=True).start()
 
@@ -268,8 +317,8 @@ def don_anh_cu_dinh_ky():
 def on_connect(cl, userdata, flags, reason_code, properties=None):
     trang_thai["mqtt"] = (reason_code == 0)
     if reason_code == 0:
-        cl.subscribe([("baidoxe/o/+", 0), ("baidoxe/the/+", 0), ("baidoxe/cong/+", 0),
-                      ("baidoxe/qua/+", 0), ("baidoxe/tb/#", 0)])
+        cl.subscribe([("baidoxe/o/+", 1), ("baidoxe/the/+", 1), ("baidoxe/cong/+", 1),
+                      ("baidoxe/qua/+", 1), ("baidoxe/tb/#", 1)])
         db.ghi_nhat_ky("Đã kết nối MQTT broker")
 
 
@@ -338,9 +387,56 @@ def tinh_trang_cho_qua():
     return kq
 
 
+# ---------- Đăng nhập ----------
+TRANG_KHONG_CAN_DANG_NHAP = {"dang_nhap", "static"}
+
+
+def mat_khau_mac_dinh():
+    return config.WEB_MAT_KHAU == config.WEB_MAT_KHAU_MAC_DINH
+
+
+@app.before_request
+def kiem_tra_dang_nhap():
+    """Mọi trang / API / ảnh / video đều phải đăng nhập (trừ trang đăng nhập)."""
+    if request.endpoint in TRANG_KHONG_CAN_DANG_NHAP or session.get("dang_nhap"):
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify(ok=False, loi="Chưa đăng nhập", can_dang_nhap=True), 401
+    return redirect(url_for("dang_nhap", tiep=request.path))
+
+
+@app.route("/dang_nhap", methods=["GET", "POST"])
+def dang_nhap():
+    loi = None
+    tiep = request.values.get("tiep", "/")
+    if not tiep.startswith("/") or tiep.startswith("//"):        # chỉ chuyển về trang trong web này
+        tiep = "/"
+    if request.method == "POST":
+        tk = request.form.get("tai_khoan", "")
+        mk = request.form.get("mat_khau", "")
+        dung = (hmac.compare_digest(tk.encode(), config.WEB_TAI_KHOAN.encode())
+                and hmac.compare_digest(mk.encode(), config.WEB_MAT_KHAU.encode()))
+        if dung:
+            session.clear()
+            session.permanent = True
+            session["dang_nhap"] = tk
+            db.ghi_nhat_ky(f"Đăng nhập web: {tk} từ {request.remote_addr}")
+            return redirect(tiep)
+        time.sleep(1)                                             # làm chậm việc dò mật khẩu
+        db.ghi_nhat_ky(f"Đăng nhập SAI từ {request.remote_addr}", "canh_bao")
+        loi = "Sai tài khoản hoặc mật khẩu"
+    return render_template("dang_nhap.html", loi=loi, tiep=tiep)
+
+
+@app.route("/dang_xuat")
+def dang_xuat():
+    session.clear()
+    return redirect(url_for("dang_nhap"))
+
+
 @app.route("/")
 def trang_chu():
-    return render_template("index.html", so_o=config.SO_O)
+    return render_template("index.html", so_o=config.SO_O, nguoi_dung=session.get("dang_nhap"))
 
 
 @app.route("/api/state")
@@ -365,7 +461,17 @@ def api_state():
         "vua_vao": db.phien_vua_vao(),
         "thiet_bi": thiet_bi.danh_sach(trang_thai["mqtt"]),
         "o_loi": thiet_bi.o_cam_bien_loi(),
+        "canh_bao_bao_mat": canh_bao_bao_mat(),
     })
+
+
+def canh_bao_bao_mat():
+    ds = []
+    if mat_khau_mac_dinh():
+        ds.append("Trang web đang dùng mật khẩu mặc định – đổi WEB_MAT_KHAU trong cau_hinh_rieng.py")
+    if not config.MQTT_USER:
+        ds.append("MQTT chưa có mật khẩu – ai vào được WiFi cũng gửi lệnh mở cổng được (xem HUONG_DAN_PI.md, mục Bảo mật)")
+    return ds
 
 
 @app.route("/video/<cong>")
@@ -561,6 +667,8 @@ def api_gia_lap_o(so):
     return jsonify(ok=True)
 
 
+thiet_bi.khi_khoi_dong = esp32_khoi_dong_lai
+
 if __name__ == "__main__":
     khoi_phuc_cho_qua()
     khoi_dong_mqtt()
@@ -570,4 +678,6 @@ if __name__ == "__main__":
     chay_nen(theo_doi_cho_qua)
     thiet_bi.bat_dau(lambda: trang_thai["mqtt"])
     db.ghi_nhat_ky("Khởi động hệ thống")
+    for cb in canh_bao_bao_mat():
+        db.ghi_nhat_ky(f"Bảo mật: {cb}", "canh_bao")
     app.run(host="0.0.0.0", port=config.WEB_PORT, threaded=True)
