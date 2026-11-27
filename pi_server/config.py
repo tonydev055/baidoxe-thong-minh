@@ -49,6 +49,14 @@ DON_VI_PHUT = 1
 GIA_LUOT_DAU = 10000    # tiền cho đơn vị thời gian đầu tiên
 GIA_LUOT_TIEP = 5000    # tiền cho mỗi đơn vị tiếp theo (chưa đủ vẫn tính tròn)
 
+# ---------------- Thanh chắn ----------------
+# Thanh chắn chỉ hạ khi xe đã đi qua cảm biến. Quá số giây này (tính từ lúc mở cổng) mà xe
+# chưa qua thì trang web hỏi nhân viên:
+#   cổng vào: xoá thẻ (xe không vào nữa) hay chờ tiếp
+#   cổng ra : xe vẫn ra (giữ cổng mở) hay không ra (đóng cổng, xe vẫn trong bãi)
+CHO_XAC_NHAN_VAO_GIAY = 30
+CHO_XAC_NHAN_RA_GIAY = 15
+
 # Biển số lúc ra được coi là khớp nếu giống lúc vào từ mức này trở lên (0..1).
 NGUONG_GIONG_BIEN = 0.8
 

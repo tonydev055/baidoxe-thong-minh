@@ -71,13 +71,12 @@ Mở trình duyệt trên laptop: **`http://<IP-Pi>:5000`**
 
 ## 5. Test khi chưa có ESP32
 
-**Cách 1 – ngay trên trang web**: phần **"Công cụ thử"** cuối trang có nút quẹt thẻ cổng vào/ra và nút đổi trạng thái từng ô.
+**Cách 1 – ngay trên trang web**: phần **"Công cụ thử"** cuối trang có nút quẹt thẻ cổng vào/ra, nút **"Xe đi qua cổng vào/ra"** (giả lập xe đi qua cảm biến) và nút đổi trạng thái từng ô.
 
-**Căn góc camera / test lặp lại một thẻ** – ngay dưới khung **"Camera trực tiếp"**:
+**Test lặp lại một thẻ / dọn bãi:**
 
 | Nút | Tác dụng |
 |---|---|
-| **Chụp + đọc biển** (cổng vào / ra) | Chụp 1 ảnh và đọc biển số nhưng **không tạo lượt xe**. Chỉnh camera rồi bấm lại đến khi đọc đúng biển |
 | **Xe vừa vào → Xoá để quẹt lại** | Xoá lượt xe vào gần nhất (kèm ảnh) để quẹt lại đúng thẻ đó ở cổng vào |
 | **Xoá** (từng dòng trong "Xe đang trong bãi") | Xoá 1 lượt bất kỳ |
 | **Xoá tất cả (dọn sau khi test)** | Xoá mọi xe trong bãi / chờ kiểm tra. Lịch sử xe đã ra vẫn giữ |
@@ -100,6 +99,10 @@ python gia_lap.py the vao A1:B2:C3:D4
 
 ```bash
 python gia_lap.py the ra A1:B2:C3:D4
+```
+
+```bash
+python gia_lap.py qua vao
 ```
 
 ## 6. Cho chương trình tự chạy khi bật Pi
@@ -134,8 +137,12 @@ sudo systemctl enable --now baidoxe
 | Sự kiện | Pi làm gì |
 |---|---|
 | ESP32 số 1 gửi `baidoxe/o/1 = 1` | Cập nhật ô 1 có xe trên web |
-| Quẹt thẻ cổng vào (`baidoxe/the/vao`) | Còn chỗ → chụp webcam vào, đọc biển, lưu, gửi `baidoxe/lenh/vao = mo`. Hết chỗ hoặc thẻ đang trong bãi → `tuchoi` |
-| Quẹt thẻ cổng ra (`baidoxe/the/ra`) | Chụp webcam ra, đọc biển. **Khớp** → tính tiền, `mo`. **Không khớp** → `tuchoi`, web hiện cảnh báo kèm 2 ảnh để người trông xe bấm "Cho ra" hoặc "Không cho ra" |
+| Quẹt thẻ cổng vào (`baidoxe/the/vao`) | Còn chỗ → chụp webcam vào, đọc biển, lưu lượt ("Đang vào cổng"), gửi `baidoxe/lenh/vao = mo`. Hết chỗ hoặc thẻ đang trong bãi → `tuchoi` |
+| Quẹt thẻ cổng ra (`baidoxe/the/ra`) | Chụp webcam ra, đọc biển. **Khớp** → tính tiền, lượt chuyển "Đang ra", `mo`. **Không khớp** → `tuchoi`, web hiện cảnh báo kèm 2 ảnh để người trông xe bấm "Cho ra" hoặc "Không cho ra" |
+| Xe đi qua cảm biến cổng (`baidoxe/qua/vao` hoặc `/ra`) | ESP32 hạ thanh chắn. Cổng vào: xe chuyển "trong bãi". Cổng ra: kết thúc lượt, ghi vào lịch sử |
+| Mở cổng mà xe chưa đi qua | Thanh chắn **không tự hạ**. Sau `CHO_XAC_NHAN_VAO_GIAY` (30 giây) ở cổng vào / `CHO_XAC_NHAN_RA_GIAY` (15 giây) ở cổng ra, web hiện cảnh báo để nhân viên chọn |
+| Nhân viên chọn ở cổng vào | **Xe vẫn vào** → giữ cổng mở chờ xe. **Xe không vào** → xoá thẻ khỏi bãi, gửi `baidoxe/lenh/vao = dong` |
+| Nhân viên chọn ở cổng ra | **Xe vẫn ra** → giữ cổng mở, xe qua cảm biến thì kết thúc lượt như thường. **Xe không ra** → gửi `dong`, xe vẫn tính là trong bãi (không tính tiền) |
 
 ## Giá tiền
 

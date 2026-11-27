@@ -8,8 +8,9 @@
  *
  *  Luồng mỗi cổng:
  *   ĐÓNG --quẹt thẻ--> (chờ Pi duyệt biển số) --> MỞ
- *   MỞ --cảm biến thấy xe--> ĐANG QUA --hết xe 1 giây--> ĐÓNG
- *   MỞ quá 15 giây mà không có xe qua --> tự ĐÓNG
+ *   MỞ --cảm biến thấy xe--> ĐANG QUA --hết xe 1 giây--> ĐÓNG + báo Pi (baidoxe/qua/<cổng>)
+ *   MỞ mà xe chưa qua: KHÔNG tự đóng. Pi hỏi nhân viên trên web, xe không đi nữa
+ *   thì Pi gửi lệnh "dong" để hạ thanh chắn
  *
  *  TỰ KIỂM TRA THIẾT BỊ (gửi lên Pi qua baidoxe/tb/cong, hiện ở mục "Tình trạng thiết bị"):
  *   - RC522: đọc thanh ghi phiên bản, đọc không được => lỗi dây / mất nguồn 3.3V
@@ -52,7 +53,6 @@ const float NGUONG_CM = 8.0;                 // nhỏ hơn => có xe trước c�
 const int GOC_DONG = 0;
 const int GOC_MO   = 90;
 const unsigned long CHO_DUYET_MS = 25000;    // chờ Pi chụp ảnh + đọc biển số tối đa
-const unsigned long MO_TOI_DA_MS = 15000;    // mở mà không có xe qua => tự đóng
 const unsigned long CHO_DONG_MS  = 1000;     // xe qua hẳn rồi chờ bao lâu mới đóng
 const unsigned long KIEM_TRA_MS  = 5000;     // bao lâu tự kiểm tra thiết bị 1 lần
 const unsigned long BAO_CAO_MS   = 30000;    // không có gì đổi vẫn gửi báo cáo định kỳ
@@ -191,6 +191,20 @@ bool guiMQTT(const char* loai, const char* ten, const char* noiDung, bool retain
 #endif
 }
 
+// Xe đã đi qua cổng: báo Pi để kết thúc lượt. Đang mất MQTT thì nhớ lại, kết nối lại sẽ gửi.
+bool chuaBaoQua[2] = {false, false};
+
+void guiXeQuaConNo() {
+  for (int i = 0; i < 2; i++) {
+    if (chuaBaoQua[i] && guiMQTT("qua", cong[i].ten, "1", false)) chuaBaoQua[i] = false;
+  }
+}
+
+void baoXeQua(Cong& c) {
+  chuaBaoQua[&c - cong] = true;
+  guiXeQuaConNo();
+}
+
 // ------------------ ĐIỀU KHIỂN CỔNG ------------------
 void datTrangThai(Cong& c, TrangThai tt) {
   c.tt = tt;
@@ -242,12 +256,10 @@ void xuLyCong(Cong& c) {
       break;
 
     case MO:
+      // Không tự đóng: chờ xe đi qua cảm biến, hoặc lệnh "dong" từ Pi
       if (coXe(c)) {
         Serial.printf("[%s] Xe dang di qua\n", c.ten);
         datTrangThai(c, DANG_QUA);
-      } else if (millis() - c.moc > MO_TOI_DA_MS) {
-        Serial.printf("[%s] Khong co xe qua, tu dong\n", c.ten);
-        dongCong(c);
       }
       break;
 
@@ -259,6 +271,7 @@ void xuLyCong(Cong& c) {
       } else if (millis() - c.hetXeLuc > CHO_DONG_MS) {
         Serial.printf("[%s] Xe da qua han\n", c.ten);
         dongCong(c);
+        baoXeQua(c);
       }
       break;
   }
@@ -277,6 +290,13 @@ void nhanLenh(char* topic, byte* payload, unsigned int len) {
       if (c.tt == CHO_DUYET || c.tt == DONG) {
         bip(c.coi, 120); delay(80); bip(c.coi, 120);   // 2 tiếng ngắn = được qua
         moCong(c);
+      }
+    } else if (lenh == "dong") {
+      // Nhân viên xác nhận xe không đi qua nữa (hoặc đóng tay từ web).
+      // Chỉ hạ khi chưa có xe dưới cảm biến (trạng thái MỞ), tránh hạ trúng xe.
+      if (c.tt == MO) {
+        Serial.printf("[%s] Pi yeu cau dong cong\n", c.ten);
+        dongCong(c);
       }
     } else if (lenh == "tuchoi" && c.tt == CHO_DUYET) {
       Serial.printf("[%s] Pi tu choi (bien so khong khop)\n", c.ten);
@@ -345,6 +365,7 @@ void giuKetNoi() {
     mqtt.subscribe("baidoxe/lenh/+");
     for (auto& c : cong)   // báo lại trạng thái cổng hiện tại cho trang web
       guiMQTT("cong", c.ten, (c.tt == MO || c.tt == DANG_QUA) ? "mo" : "dong", true);
+    guiXeQuaConNo();
   } else {
     Serial.printf("MQTT: loi ket noi (%d), thu lai sau 3s\n", mqtt.state());
   }

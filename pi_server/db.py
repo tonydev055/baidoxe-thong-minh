@@ -89,9 +89,18 @@ def xoa_the_thang(uid):
 
 
 # ---------------- Phiên gửi xe ----------------
+# Trạng thái 1 lượt:
+#   dang_vao     : thẻ đã được nhận ở cổng vào, thanh chắn mở, xe CHƯA đi qua cảm biến
+#   trong_bai    : xe đã vào bãi
+#   cho_kiem_tra : quẹt ra nhưng biển không khớp, chờ người trông xe xem
+#   dang_ra      : được ra, thanh chắn mở, xe CHƯA đi qua cảm biến cổng ra
+#   da_ra        : xe đã ra (lịch sử)
+CHUA_RA = "('dang_vao', 'trong_bai', 'cho_kiem_tra', 'dang_ra')"
+
+
 def phien_hien_tai(uid):
-    """Phiên chưa kết thúc của thẻ (xe đang trong bãi hoặc đang chờ kiểm tra)."""
-    return _query("SELECT * FROM phien WHERE uid = ? AND trang_thai IN ('trong_bai', 'cho_kiem_tra') "
+    """Phiên chưa kết thúc của thẻ."""
+    return _query(f"SELECT * FROM phien WHERE uid = ? AND trang_thai IN {CHUA_RA} "
                   "ORDER BY id DESC LIMIT 1", (uid,), one=True)
 
 
@@ -100,13 +109,25 @@ def lay_phien(phien_id):
 
 
 def tao_phien(uid, loai, bien_vao, anh_vao, gio_vao):
+    """Tạo lượt mới ở trạng thái 'dang_vao' (chờ xe đi qua cảm biến cổng vào)."""
     return _exec("INSERT INTO phien (uid, loai, bien_vao, anh_vao, gio_vao, trang_thai) "
-                 "VALUES (?, ?, ?, ?, ?, 'trong_bai')", (uid, loai, bien_vao, anh_vao, gio_vao))
+                 "VALUES (?, ?, ?, ?, ?, 'dang_vao')", (uid, loai, bien_vao, anh_vao, gio_vao))
 
 
-def ket_thuc_phien(phien_id, bien_ra, anh_ra, gio_ra, so_tien):
-    _exec("UPDATE phien SET bien_ra = ?, anh_ra = ?, gio_ra = ?, so_tien = ?, trang_thai = 'da_ra' "
+def da_vao(phien_id):
+    """Xe đã đi qua cảm biến cổng vào."""
+    _exec("UPDATE phien SET trang_thai = 'trong_bai' WHERE id = ? AND trang_thai = 'dang_vao'", (phien_id,))
+
+
+def bat_dau_ra(phien_id, bien_ra, anh_ra, gio_ra, so_tien):
+    """Được ra: mở cổng, chờ xe đi qua cảm biến cổng ra mới chuyển sang 'da_ra'."""
+    _exec("UPDATE phien SET bien_ra = ?, anh_ra = ?, gio_ra = ?, so_tien = ?, trang_thai = 'dang_ra' "
           "WHERE id = ?", (bien_ra, anh_ra, gio_ra, so_tien, phien_id))
+
+
+def da_ra(phien_id):
+    """Xe đã đi qua cảm biến cổng ra -> kết thúc lượt."""
+    _exec("UPDATE phien SET trang_thai = 'da_ra' WHERE id = ? AND trang_thai = 'dang_ra'", (phien_id,))
 
 
 def cho_kiem_tra(phien_id, bien_ra, anh_ra, gio_ra):
@@ -114,9 +135,10 @@ def cho_kiem_tra(phien_id, bien_ra, anh_ra, gio_ra):
           "WHERE id = ?", (bien_ra, anh_ra, gio_ra, phien_id))
 
 
-def huy_kiem_tra(phien_id):
-    _exec("UPDATE phien SET bien_ra = NULL, anh_ra = NULL, gio_ra = NULL, trang_thai = 'trong_bai' "
-          "WHERE id = ?", (phien_id,))
+def ve_trong_bai(phien_id):
+    """Huỷ lượt ra (biển không khớp / xe không ra nữa): xe vẫn trong bãi như cũ."""
+    _exec("UPDATE phien SET bien_ra = NULL, anh_ra = NULL, gio_ra = NULL, so_tien = NULL, "
+          "trang_thai = 'trong_bai' WHERE id = ?", (phien_id,))
 
 
 def sua_bien_vao(phien_id, bien):
@@ -124,19 +146,18 @@ def sua_bien_vao(phien_id, bien):
 
 
 def xoa_phien(phien_id):
-    """Xoá hẳn 1 lượt gửi xe (dùng khi test: xoá xe vừa vào để quẹt lại thẻ đó)."""
+    """Xoá hẳn 1 lượt gửi xe (xe không vào nữa / xoá xe test để quẹt lại thẻ đó)."""
     _exec("DELETE FROM phien WHERE id = ?", (phien_id,))
 
 
 def phien_vua_vao():
-    """Lượt xe vào gần nhất còn trong bãi (hoặc đang chờ kiểm tra)."""
-    return _query("SELECT * FROM phien WHERE trang_thai IN ('trong_bai', 'cho_kiem_tra') "
-                  "ORDER BY id DESC LIMIT 1", one=True)
+    """Lượt xe vào gần nhất chưa ra."""
+    return _query(f"SELECT * FROM phien WHERE trang_thai IN {CHUA_RA} ORDER BY id DESC LIMIT 1", one=True)
 
 
 def ds_chua_ra():
-    """Tất cả lượt chưa ra (trong bãi + chờ kiểm tra)."""
-    return _query("SELECT * FROM phien WHERE trang_thai IN ('trong_bai', 'cho_kiem_tra') ORDER BY id DESC")
+    """Tất cả lượt chưa ra (đang vào, trong bãi, chờ kiểm tra, đang ra)."""
+    return _query(f"SELECT * FROM phien WHERE trang_thai IN {CHUA_RA} ORDER BY id DESC")
 
 
 def ds_theo_trang_thai(trang_thai):

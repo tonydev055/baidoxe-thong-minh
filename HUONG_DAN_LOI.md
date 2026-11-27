@@ -48,6 +48,7 @@ Mở log ESP32 cổng rồi quẹt lại:
 
 | Hiện tượng | Nguyên nhân | Cách sửa |
 |---|---|---|
+| Thanh chắn mở mãi không hạ | **Bình thường**: thanh chắn chỉ hạ khi xe đã đi qua cảm biến. Quá 30 giây (cổng vào) / 15 giây (cổng ra) web sẽ hỏi nhân viên. Mở nhầm thì bấm **Đóng cổng** trên web. Xe đã qua mà không hạ: cảm biến cổng lỗi hoặc đặt lệch | Xem dòng cảm biến bên dưới |
 | Web báo "Đang mở", servo đứng im | Servo **không có nguồn 5V** hoặc lỏng dây tín hiệu (vào: 32, ra: 33) | Đo / kiểm tra dây đỏ (5V), nâu (GND), cam (tín hiệu) |
 | Servo kêu rè rè, giật nhưng không quay đủ | Nguồn yếu hoặc thanh chắn bị kẹt | Cấp nguồn 5V khỏe hơn; kiểm tra cơ khí |
 | Mỗi lần mở cổng ESP32 khởi động lại, web báo **"SỤT NGUỒN"** | Servo kéo dòng mạnh làm sụt nguồn ESP32 | Cấp **nguồn 5V riêng cho servo** (adapter ≥ 2A), **nối chung GND** với ESP32. Không lấy nguồn servo từ chân 3V3 của ESP32 |

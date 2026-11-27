@@ -68,6 +68,9 @@
   .test > div { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; align-content: start; }
   .test img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #111; border-radius: 8px; }
   .test .ket-qua { font-size: 14px; }
+  .cho { font-size: 13px; margin-top: 4px; display: grid; gap: 6px; justify-items: start; }
+  .cho:empty { display: none; }
+  .cho .dem { color: var(--amber); font-weight: 600; }
   .pill.warn { background: var(--amber-bg); color: var(--amber); }
   .pill.gray { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
   .slot.err { background: var(--amber-bg); color: var(--amber); border-color: var(--amber); }
@@ -115,8 +118,10 @@
     <div class="card">
       <h2>Cổng</h2>
       <div class="gates">
-        <div class="gate"><div><b>Cổng vào</b><div class="muted" id="g-vao">–</div></div><button onclick="moCong('vao')">Mở cổng</button></div>
-        <div class="gate"><div><b>Cổng ra</b><div class="muted" id="g-ra">–</div></div><button onclick="moCong('ra')">Mở cổng</button></div>
+        <div class="gate"><div><b>Cổng vào</b><div class="muted" id="g-vao">–</div><div id="cho-vao" class="cho"></div></div>
+          <div class="row"><button onclick="moCong('vao')">Mở cổng</button><button onclick="dongCong('vao')">Đóng cổng</button></div></div>
+        <div class="gate"><div><b>Cổng ra</b><div class="muted" id="g-ra">–</div><div id="cho-ra" class="cho"></div></div>
+          <div class="row"><button onclick="moCong('ra')">Mở cổng</button><button onclick="dongCong('ra')">Đóng cổng</button></div></div>
       </div>
       <p class="muted" id="gia" style="font-size:13px;margin:12px 0 0"></p>
     </div>
@@ -129,14 +134,6 @@
       <figure><img class="cam" src="/video/ra" alt="Camera cổng ra"><figcaption>Cổng ra</figcaption></figure>
     </div>
     <div class="test">
-      <div>
-        <div class="row"><b>Chụp thử cổng vào</b><button onclick="chupThu('vao', this)">Chụp + đọc biển</button></div>
-        <div id="ct-vao" class="ket-qua muted">Chưa chụp. Không tạo lượt xe, dùng để căn góc camera.</div>
-      </div>
-      <div>
-        <div class="row"><b>Chụp thử cổng ra</b><button onclick="chupThu('ra', this)">Chụp + đọc biển</button></div>
-        <div id="ct-ra" class="ket-qua muted">Chưa chụp. Không tạo lượt xe, dùng để căn góc camera.</div>
-      </div>
       <div>
         <div class="row"><b>Xe vừa vào</b>
           <button class="danger" id="btn-xoa-vua-vao" onclick="xoaXeVuaVao()">Xoá để quẹt lại</button></div>
@@ -190,6 +187,8 @@
       <input id="g-uid" placeholder="Mã thẻ" value="A1:B2:C3:D4" size="16">
       <button onclick="quet('vao')">Quẹt thẻ cổng vào</button>
       <button onclick="quet('ra')">Quẹt thẻ cổng ra</button>
+      <button onclick="xeQua('vao')">Xe đi qua cổng vào</button>
+      <button onclick="xeQua('ra')">Xe đi qua cổng ra</button>
     </div>
     <div class="row" id="toggle-o"></div>
   </section>
@@ -228,17 +227,17 @@ async function xoaXeVuaVao() {
   const d = await post('/api/xoa_xe_vua_vao');
   if (d.ok) document.getElementById('vua-vao').textContent = `Đã xoá thẻ ${d.uid}. Quẹt lại thẻ để thử tiếp.`;
 }
-async function chupThu(c, nut) {
-  nut.disabled = true; nut.textContent = 'Đang chụp...';
-  await post('/api/chup_thu/' + c);
-  nut.disabled = false; nut.textContent = 'Chụp + đọc biển';
-}
-function veChupThu(c, k) {
-  if (!k) return;
-  document.getElementById('ct-' + c).innerHTML = `${anhTo(k.anh)}
-    <div>Biển đọc được: ${k.that ? bien(k.bien) : '<span class="muted">không có webcam (giả lập)</span>'}
-    <span class="muted"> · lúc ${k.luc.slice(11)}</span></div>`;
-}
+const dongCong = c => post('/api/dong_cong/' + c);
+const xeQua = c => post('/api/gia_lap/qua/' + c);
+// Nhân viên xác nhận khi quẹt thẻ xong mà xe chưa đi qua cảm biến
+const HOI = {
+  vao: { viec: 'vào', co: 'Xe vẫn vào – giữ cổng mở', khong: 'Xe không vào – xoá thẻ, đóng cổng',
+         hoiKhong: uid => `Xe thẻ ${uid} không vào nữa? Thẻ sẽ bị xoá khỏi bãi và thanh chắn hạ xuống.` },
+  ra:  { viec: 'ra', co: 'Xe vẫn ra – giữ cổng mở', khong: 'Xe không ra – đóng cổng, giữ xe trong bãi',
+         hoiKhong: uid => `Xe thẻ ${uid} không ra nữa? Thanh chắn hạ xuống, xe vẫn tính là trong bãi.` },
+};
+const choTiep = c => post(`/api/cho_qua/${c}/cho_tiep`);
+const huyCho = (c, uid) => confirm(HOI[c].hoiKhong(uid)) && post(`/api/cho_qua/${c}/huy`);
 const quet = c => post('/api/gia_lap/the', { cong: c, uid: document.getElementById('g-uid').value });
 const doiO = so => post('/api/gia_lap/o/' + so);
 function suaBien(id, cu) {
@@ -291,7 +290,24 @@ function ve(d) {
   const dv = d.gia.don_vi_phut === 60 ? 'giờ' : d.gia.don_vi_phut + ' phút';
   document.getElementById('gia').textContent = `Giá: ${vnd(d.gia.dau)} cho ${dv} đầu, mỗi ${dv} tiếp theo ${vnd(d.gia.tiep)}. Thẻ tháng miễn phí.`;
 
-  document.getElementById('alerts').innerHTML = d.cho_kiem_tra.map(p => `
+  // Lượt đang chờ xe đi qua: dòng nhỏ trong khung Cổng, quá giờ thì hiện cảnh báo to ở đầu trang
+  const canhBaoCho = [];
+  for (const c of ['vao', 'ra']) {
+    const k = d.cho_qua[c], h = HOI[c], o = document.getElementById('cho-' + c);
+    if (!k) { o.innerHTML = ''; continue; }
+    const uid = esc(k.uid), nutKhong = `<button class="danger" onclick="huyCho('${c}', '${uid}')">${h.khong}</button>`;
+    o.innerHTML = `<span>Chờ xe thẻ <b>${uid}</b> đi qua: <span class="dem">${k.giay} giây</span>
+      ${k.da_xac_nhan ? '(nhân viên đã xác nhận chờ tiếp)' : `(hỏi nhân viên sau ${k.gioi_han} giây)`}</span>${nutKhong}`;
+    if (k.hoi) canhBaoCho.push(`
+      <div class="alert">
+        <b>⚠ ${c === 'vao' ? 'Cổng vào' : 'Cổng ra'}: thẻ ${uid} quẹt được ${k.giay} giây nhưng xe chưa ${h.viec}</b>
+        <div class="imgs"><div>Biển: ${bien(k.bien)}${c === 'ra' ? ` · thu ${vnd(k.so_tien)}` : ''}<br>
+          ${k.anh ? `<img src="/anh/${encodeURIComponent(k.anh)}" ${KHI_LOI_ANH}>` : ''}</div></div>
+        <div class="row"><button class="primary" onclick="choTiep('${c}')">${h.co}</button>${nutKhong}</div>
+      </div>`);
+  }
+
+  document.getElementById('alerts').innerHTML = canhBaoCho.join('') + d.cho_kiem_tra.map(p => `
     <div class="alert">
       <b>⚠ Biển số không khớp – thẻ ${esc(p.uid)}</b>
       <div class="imgs">
@@ -305,7 +321,9 @@ function ve(d) {
 
   document.getElementById('trong-bai').innerHTML = d.trong_bai.length ? d.trong_bai.map(p => `
     <tr><td>${anh(p.anh_vao)}</td><td>${esc(p.uid)}</td><td>${bien(p.bien_vao)}</td>
-    <td>${p.loai === 'thang' ? '<span class="tag">Thẻ tháng</span>' : 'Lượt'}</td>
+    <td>${p.loai === 'thang' ? '<span class="tag">Thẻ tháng</span>' : 'Lượt'}
+      ${p.trang_thai === 'dang_vao' ? '<span class="pill warn">Đang vào cổng</span>' : ''}
+      ${p.trang_thai === 'dang_ra' ? '<span class="pill warn">Đang ra</span>' : ''}</td>
     <td>${gio(p.gio_vao)}</td><td>${p.phut} phút</td><td>${vnd(p.tam_tinh)}</td>
     <td><div class="row"><button onclick="suaBien(${p.id}, '${esc(p.bien_vao)}')">Sửa biển</button>
     <button class="danger" onclick="xoaLuot(${p.id}, '${esc(p.uid)}')">Xoá</button></div></td></tr>`).join('')
@@ -322,8 +340,6 @@ function ve(d) {
     <td><button class="danger" data-uid="${esc(t.uid)}" onclick="xoaThe(this)">Xoá</button></td></tr>`).join('')
     : '<tr><td colspan="4" class="empty">Chưa có thẻ tháng</td></tr>';
 
-  veChupThu('vao', d.chup_thu.vao);
-  veChupThu('ra', d.chup_thu.ra);
   const v = d.vua_vao;
   document.getElementById('btn-xoa-vua-vao').disabled = !v;
   if (v) document.getElementById('vua-vao').innerHTML = `${anhTo(v.anh_vao)}
