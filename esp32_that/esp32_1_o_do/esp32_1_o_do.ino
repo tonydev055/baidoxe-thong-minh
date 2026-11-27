@@ -196,6 +196,7 @@ void guiBaoCao() {
 #if DUNG_MQTT
 unsigned long lanThuCuoi = 0;
 unsigned long lanBaoWifi = 0;
+unsigned long matWifiLuc = 0;   // lúc bắt đầu mất WiFi (0 = đang có WiFi)
 bool daBaoIP = false;
 
 // Liệt kê các mạng WiFi ESP32 nhìn thấy (chỉ thấy mạng 2.4 GHz)
@@ -214,6 +215,14 @@ void quetWifi() {
 void giuKetNoi() {
   if (WiFi.status() != WL_CONNECTED) {
     daBaoIP = false;
+    // Mạng chập chờn: ESP32 đôi khi không tự vào lại WiFi -> cứ 15 giây chủ động kết nối lại
+    if (matWifiLuc == 0) matWifiLuc = millis();
+    if (millis() - matWifiLuc > 15000) {
+      Serial.println("WiFi: mat ket noi qua 15 giay, thu ket noi lai");
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+      matWifiLuc = millis();
+    }
     if (millis() - lanBaoWifi > 5000) {
       lanBaoWifi = millis();
       int s = WiFi.status();
@@ -223,6 +232,7 @@ void giuKetNoi() {
     }
     return;
   }
+  matWifiLuc = 0;
   if (!daBaoIP) {
     daBaoIP = true;
     Serial.printf("WiFi: da ket noi, IP ESP32 = %s, may chu = %s\n", WiFi.localIP().toString().c_str(), MQTT_HOST);
