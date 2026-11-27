@@ -469,7 +469,7 @@ def canh_bao_bao_mat():
     ds = []
     if mat_khau_mac_dinh():
         ds.append("Trang web đang dùng mật khẩu mặc định – đổi WEB_MAT_KHAU trong cau_hinh_rieng.py")
-    if not config.MQTT_USER:
+    if not config.MQTT_USER and not config.AN_CANH_BAO_MQTT:
         ds.append("MQTT chưa có mật khẩu – ai vào được WiFi cũng gửi lệnh mở cổng được (xem HUONG_DAN_PI.md, mục Bảo mật)")
     return ds
 

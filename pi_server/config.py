@@ -14,6 +14,8 @@ MQTT_PORT = 1883
 # Bật mật khẩu cho Mosquitto: chạy  sudo bash bat_mat_khau_mqtt.sh  (xem HUONG_DAN_PI.md)
 MQTT_USER = ""
 MQTT_PASS = ""
+# True = không hiện cảnh báo "MQTT chưa có mật khẩu" trên web (vẫn KHÔNG an toàn, chỉ là ẩn đi)
+AN_CANH_BAO_MQTT = False
 
 # ---------------- Bãi đỗ ----------------
 SO_O = 4                # số ô đỗ

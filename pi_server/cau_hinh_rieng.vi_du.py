@@ -18,6 +18,9 @@ CAMERA = {
 WEB_TAI_KHOAN = "admin"
 WEB_MAT_KHAU = "doi-mat-khau-nay"
 
+# Chưa bật mật khẩu MQTT mà muốn ẩn cảnh báo trên web: bỏ dấu # ở dòng dưới
+# AN_CANH_BAO_MQTT = True
+
 # Tài khoản MQTT - điền sau khi chạy  sudo bash bat_mat_khau_mqtt.sh
 # (phải giống MQTT_USER / MQTT_PASS trong bi_mat.h của 2 ESP32)
 # MQTT_USER = "baidoxe"
