@@ -21,7 +21,7 @@
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
            padding: 14px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
   header h1 { font-size: 20px; margin: 0; font-weight: 600; }
-  .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+  .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; white-space: nowrap; }
   .pill.ok { background: var(--green-bg); color: var(--green); }
   .pill.bad { background: var(--red-bg); color: var(--red); }
   main { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
@@ -68,12 +68,19 @@
   .test > div { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; align-content: start; }
   .test img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #111; border-radius: 8px; }
   .test .ket-qua { font-size: 14px; }
+  .pill.warn { background: var(--amber-bg); color: var(--amber); }
+  .pill.gray { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .slot.err { background: var(--amber-bg); color: var(--amber); border-color: var(--amber); }
+  td.nhom { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  tr.loi td { background: var(--red-bg); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 <body>
 <header>
   <h1>Bãi đỗ xe thông minh</h1>
   <div class="row">
+    <a href="#thiet-bi" id="tb-tom-tat" class="pill gray" style="text-decoration:none">Thiết bị: –</a>
     <span id="mqtt" class="pill bad">MQTT: mất kết nối</span>
     <span id="clock" class="muted"></span>
   </div>
@@ -88,6 +95,17 @@
   </section>
 
   <div id="alerts"></div>
+
+  <section class="card" id="thiet-bi">
+    <h2>Tình trạng thiết bị</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Bộ phận</th><th>Thiết bị</th><th>Trạng thái</th><th>Ghi chú / cách xử lý</th></tr></thead>
+      <tbody id="tb-loi"></tbody>
+    </table></div>
+    <details><summary id="tb-khac-tieu-de">Các thiết bị khác</summary>
+      <div class="scroll"><table><tbody id="tb-khac"></tbody></table></div>
+    </details>
+  </section>
 
   <section class="grid2">
     <div class="card">
@@ -244,8 +262,26 @@ function ve(d) {
   document.getElementById('s-luot').textContent = d.luot_hom_nay;
   document.getElementById('s-tien').textContent = vnd(d.doanh_thu_hom_nay);
 
-  document.getElementById('slots').innerHTML = d.o.map(o =>
-    `<div class="slot ${o.co_xe ? 'busy' : 'free'}">Ô ${o.so}<small>${o.co_xe ? 'Có xe' : 'Trống'}</small></div>`).join('');
+  document.getElementById('slots').innerHTML = d.o.map(o => d.o_loi.includes(o.so)
+    ? `<div class="slot err">Ô ${o.so}<small>Lỗi cảm biến</small></div>`
+    : `<div class="slot ${o.co_xe ? 'busy' : 'free'}">Ô ${o.so}<small>${o.co_xe ? 'Có xe' : 'Trống'}</small></div>`).join('');
+
+  // Tình trạng thiết bị: lỗi / cảnh báo / chưa rõ hiện ngay, còn lại gom vào "Các thiết bị khác"
+  const TT = { ok: ['ok', 'Bình thường'], loi: ['bad', 'LỖI'], canh_bao: ['warn', 'Cảnh báo'],
+               chua_ro: ['gray', 'Chưa rõ'], khong_do: ['gray', 'Tự kiểm tra bằng mắt'] };
+  const dongTB = t => `<tr class="${t.tt === 'loi' ? 'loi' : ''}"><td class="nhom">${esc(t.nhom)}</td><td>${esc(t.ten)}</td>
+    <td><span class="pill ${TT[t.tt][0]}">${TT[t.tt][1]}</span></td><td>${esc(t.ghi_chu)}</td></tr>`;
+  const canXem = d.thiet_bi.filter(t => ['loi', 'canh_bao', 'chua_ro'].includes(t.tt));
+  const conLai = d.thiet_bi.filter(t => !canXem.includes(t));
+  document.getElementById('tb-loi').innerHTML = canXem.length ? canXem.map(dongTB).join('')
+    : '<tr><td colspan="4" class="empty">Tất cả thiết bị tự kiểm tra được đều bình thường</td></tr>';
+  document.getElementById('tb-khac').innerHTML = conLai.map(dongTB).join('');
+  document.getElementById('tb-khac-tieu-de').textContent = `Các thiết bị khác (${conLai.length})`;
+  const soLoi = d.thiet_bi.filter(t => t.tt === 'loi').length;
+  const soCB = d.thiet_bi.filter(t => t.tt === 'canh_bao').length;
+  const tom = document.getElementById('tb-tom-tat');
+  tom.textContent = soLoi ? `Thiết bị: ${soLoi} lỗi` : soCB ? `Thiết bị: ${soCB} cảnh báo` : 'Thiết bị: bình thường';
+  tom.className = 'pill ' + (soLoi ? 'bad' : soCB ? 'warn' : 'ok');
   document.getElementById('toggle-o').innerHTML = d.o.map(o =>
     `<button onclick="doiO(${o.so})">Đổi trạng thái ô ${o.so}</button>`).join('');
 

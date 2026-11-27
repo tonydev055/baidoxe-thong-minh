@@ -23,6 +23,7 @@ import camera
 import config
 import db
 import ocr
+import thiet_bi
 
 # In tiếng Việt ra console Windows / file log không bị lỗi UnicodeEncodeError
 for _luong_in in (sys.stdout, sys.stderr):
@@ -177,7 +178,7 @@ def don_anh_cu_dinh_ky():
 def on_connect(cl, userdata, flags, reason_code, properties=None):
     trang_thai["mqtt"] = (reason_code == 0)
     if reason_code == 0:
-        cl.subscribe([("baidoxe/o/+", 0), ("baidoxe/the/+", 0), ("baidoxe/cong/+", 0)])
+        cl.subscribe([("baidoxe/o/+", 0), ("baidoxe/the/+", 0), ("baidoxe/cong/+", 0), ("baidoxe/tb/#", 0)])
         db.ghi_nhat_ky("Đã kết nối MQTT broker")
 
 
@@ -188,6 +189,9 @@ def on_disconnect(cl, userdata, flags, reason_code, properties=None):
 def on_message(cl, userdata, msg):
     phan = msg.topic.split("/")
     noi_dung = msg.payload.decode(errors="ignore").strip()
+    if len(phan) in (3, 4) and phan[1] == "tb":          # báo cáo tình trạng thiết bị từ ESP32
+        thiet_bi.nhan(phan[2], phan[3] if len(phan) == 4 else "", noi_dung)
+        return
     if len(phan) != 3:
         return
     _, loai, ten = phan
@@ -247,6 +251,8 @@ def api_state():
         "gia": {"don_vi_phut": config.DON_VI_PHUT, "dau": config.GIA_LUOT_DAU, "tiep": config.GIA_LUOT_TIEP},
         "vua_vao": db.phien_vua_vao(),
         "chup_thu": chup_thu_gan_nhat,
+        "thiet_bi": thiet_bi.danh_sach(trang_thai["mqtt"]),
+        "o_loi": thiet_bi.o_cam_bien_loi(),
     })
 
 
@@ -400,5 +406,6 @@ if __name__ == "__main__":
     camera.khoi_dong()
     ocr.nap_truoc()
     chay_nen(don_anh_cu_dinh_ky)
+    thiet_bi.bat_dau(lambda: trang_thai["mqtt"])
     db.ghi_nhat_ky("Khởi động hệ thống")
     app.run(host="0.0.0.0", port=config.WEB_PORT, threaded=True)

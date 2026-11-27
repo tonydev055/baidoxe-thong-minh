@@ -7,6 +7,8 @@ Mô hình bãi đỗ xe thu nhỏ dùng cảm biến siêu âm phát hiện ch�
 | `pi_server/` | Phần mềm Raspberry Pi 5: MQTT, đọc biển số, web quản lý – xem `pi_server/HUONG_DAN_PI.md` |
 | `mo_phong/esp32_1_o_do/` | ESP32 số 1: 4 cảm biến ô đỗ, LED, OLED |
 | `mo_phong/esp32_2_cong/` | ESP32 số 2: cổng vào/ra (RFID, servo, cảm biến, còi) |
+| `esp32_that/` | Code 2 ESP32 cho mạch thật (WiFi + MQTT + tự kiểm tra thiết bị) |
+| `HUONG_DAN_LOI.md` | Tra cứu lỗi từng thiết bị, khi nào cần nạp lại code |
 
 ## Cài trên Pi
 

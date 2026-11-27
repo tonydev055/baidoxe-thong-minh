@@ -38,6 +38,15 @@ def _lay_reader():
         return _reader
 
 
+def trang_thai():
+    """'ok' | 'dang_nap' | 'chua_nap' | 'chua_cai' (cài lỗi / chưa cài easyocr)"""
+    if _reader is not None:
+        return "ok"
+    if not _da_thu:
+        return "chua_nap"
+    return "dang_nap" if _khoa.locked() else "chua_cai"
+
+
 def nap_truoc():
     """Gọi lúc khởi động để lần quẹt thẻ đầu tiên không phải chờ nạp mô hình."""
     threading.Thread(target=_lay_reader, daemon=True).start()

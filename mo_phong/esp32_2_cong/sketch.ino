@@ -154,8 +154,7 @@ void xuLyCong(Cong& c) {
           datTrangThai(c, CHO_DUYET);
         } else {
           // Chưa nối được máy chủ: báo ngay thay vì bắt xe chờ hết CHO_DUYET_MS
-          Serial.printf("[%s] Chua ket noi MQTT, khong gui duoc the
-", c.ten);
+          Serial.printf("[%s] Chua ket noi MQTT, khong gui duoc the\n", c.ten);
           bip(c.coi, 600);
         }
 #else

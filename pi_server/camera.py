@@ -138,6 +138,19 @@ def co_camera_that(cong):
     return cong in _luong
 
 
+def trang_thai(cong):
+    """'ok' | 'loi' (có khai báo nhưng không có hình) | 'gia_lap' | 'khong_khai_bao' | 'khong_opencv'"""
+    if cv2 is None:
+        return "khong_opencv"
+    if config.GIA_LAP_CAMERA:
+        return "gia_lap"
+    if config.CAMERA.get(cong) is None:
+        return "khong_khai_bao"
+    khoi_dong()
+    luong = _luong.get(cong)
+    return "ok" if luong is not None and luong.lay() is not None else "loi"
+
+
 def jpeg_truc_tiep(cong, rong=640):
     """Ảnh JPEG mới nhất của webcam (dùng cho khung xem trực tiếp trên web)."""
     if cv2 is None:
