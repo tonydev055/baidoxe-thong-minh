@@ -54,7 +54,7 @@ GIA_LAP_CAMERA = os.environ.get("BAIDOXE_GIA_LAP", "0") == "1"
 # Demo: tính theo PHÚT để thấy tiền tăng nhanh. Chạy thật: đổi DON_VI_PHUT = 60 (theo giờ).
 DON_VI_PHUT = 1
 GIA_LUOT_DAU = 10000    # tiền cho đơn vị thời gian đầu tiên
-GIA_LUOT_TIEP = 5000    # tiền cho mỗi đơn vị tiếp theo (chưa đủ vẫn tính tròn)
+GIA_LUOT_TIEP = 500    # tiền cho mỗi đơn vị tiếp theo (chưa đủ vẫn tính tròn)
 
 # ---------------- Thanh chắn ----------------
 # Thanh chắn chỉ hạ khi xe đã đi qua cảm biến. Quá số giây này (tính từ lúc mở cổng) mà xe
